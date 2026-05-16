@@ -1,4 +1,4 @@
-# image-fx
+# img-fx
 
 Animated WebGL "image generation / loader" effect for React. Wrap any card and it gets a real-time shader-driven loading mosaic that periodically reveals an image from a pool you provide. Ports the canonical `image.html` effect into a small, performant React library.
 
@@ -7,7 +7,7 @@ Live demo: [image.jakubantalik.com](https://image.jakubantalik.com)
 ## Install
 
 ```bash
-npm install image-fx
+npm install img-fx
 ```
 
 `react`, `react-dom`, and `three` are peer dependencies.
@@ -24,7 +24,7 @@ npm run build:demo   # produce dist-demo/ (static showcase site)
 ## Quick start
 
 ```tsx
-import { ImageGeneration } from 'image-fx';
+import { ImageGeneration } from 'img-fx';
 
 function Card() {
   return (
@@ -63,7 +63,7 @@ without enabling `autoReveal`:
 
 ```tsx
 import { useRef } from 'react';
-import { ImageGeneration, type ImageGenerationHandle } from 'image-fx';
+import { ImageGeneration, type ImageGenerationHandle } from 'img-fx';
 
 function Card() {
   const ref = useRef<ImageGenerationHandle>(null);

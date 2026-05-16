@@ -5,7 +5,7 @@ import {
   type ImageGenerationHandle,
   type ImageGenerationPreset,
   type ImageGenerationTheme
-} from 'image-fx';
+} from 'img-fx';
 
 const IMAGE_POOL = [
   '/images/Untitled.jpg',
@@ -211,8 +211,8 @@ export function App(): JSX.Element {
   // Dark-theme card surface for the demo cards. Light theme falls back to the
   // preset's bundled cardBg so we don't tint it.
   const demoCardBg = theme === 'dark' ? '#1B1B1B' : undefined;
-  const installCmd = 'npm install image-fx';
-  const usageCode = `import { ImageGeneration } from 'image-fx';
+  const installCmd = 'npm install img-fx';
+  const usageCode = `import { ImageGeneration } from 'img-fx';
 
 <ImageGeneration preset="${preset}" images={images} autoReveal>
   <YourCard />

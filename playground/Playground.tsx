@@ -71,7 +71,7 @@ export function Playground(): JSX.Element {
   return (
     <div className="pg-page">
       <div className="pg-header">
-        <div className="pg-title">image-fx playground</div>
+        <div className="pg-title">img-fx playground</div>
       </div>
 
       <div className="pg-toolbar">

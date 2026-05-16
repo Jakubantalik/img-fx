@@ -3,7 +3,7 @@ import type { CycleEvent } from './engine';
 import type { PresetName } from './presets';
 
 /**
- * Theme mode for the image-fx effect.
+ * Theme mode for the img-fx effect.
  *
  * - `auto` (default): follows the user's `prefers-color-scheme` and updates
  *   live when the OS / browser theme changes. SSR-safe — defaults to `dark`

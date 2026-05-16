@@ -1,5 +1,5 @@
 {
-  "name": "image-fx",
+  "name": "img-fx",
   "version": "0.1.0",
   "description": "Animated WebGL image-generation / loader effect for React cards",
   "type": "module",
@@ -24,11 +24,11 @@
   "sideEffects": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Jakubantalik/image-fx.git"
+    "url": "git+https://github.com/Jakubantalik/img-fx.git"
   },
   "homepage": "https://image.jakubantalik.com",
   "bugs": {
-    "url": "https://github.com/Jakubantalik/image-fx/issues"
+    "url": "https://github.com/Jakubantalik/img-fx/issues"
   },
   "publishConfig": {
     "access": "public",

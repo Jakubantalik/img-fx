@@ -533,7 +533,7 @@ export interface CreateRevealOptions {
 
 export function createReveal(opts: CreateRevealOptions): RevealState {
   const ctx = opts.canvas.getContext('2d');
-  if (!ctx) throw new Error('image-fx: 2D context unavailable for reveal canvas');
+  if (!ctx) throw new Error('img-fx: 2D context unavailable for reveal canvas');
 
   const state: RevealInternals = {
     active: false,

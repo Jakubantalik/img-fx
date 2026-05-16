@@ -8,7 +8,7 @@ export default defineConfig({
   publicDir: resolve(__dirname, 'demo/public'),
   resolve: {
     alias: {
-      'image-fx': resolve(__dirname, 'src/index.ts')
+      'img-fx': resolve(__dirname, 'src/index.ts')
     }
   },
   build: {

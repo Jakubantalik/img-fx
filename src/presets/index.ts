@@ -1,5 +1,5 @@
 /**
- * Bundled preset configurations for the image-fx effect.
+ * Bundled preset configurations for the img-fx effect.
  *
  * Direct ports of the four JSON files in `presets/`:
  *   • preset-dot-style-1.json     -> dots-organic   (Plasma)

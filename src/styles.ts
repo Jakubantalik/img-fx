@@ -1,7 +1,7 @@
 /** Singleton CSS injection — one <style> tag per page, no matter how many
  *  <ImageGeneration> instances are mounted. */
 
-const STYLE_ID = 'image-fx-styles';
+const STYLE_ID = 'img-fx-styles';
 
 const CSS = /* css */ `
 .image-gen-root {

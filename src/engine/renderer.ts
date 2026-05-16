@@ -394,7 +394,7 @@ export interface CreateInstanceOptions {
 export function createInstance(opts: CreateInstanceOptions): Instance {
   const s = ensureShared();
   const ctx = opts.canvas.getContext('2d');
-  if (!ctx) throw new Error('image-fx: 2D context unavailable');
+  if (!ctx) throw new Error('img-fx: 2D context unavailable');
   const inst: Instance = {
     canvas: opts.canvas,
     ctx,

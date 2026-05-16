@@ -15,7 +15,7 @@
     "allowSyntheticDefaultImports": true,
     "baseUrl": ".",
     "paths": {
-      "image-fx": ["./src/index.ts"]
+      "img-fx": ["./src/index.ts"]
     }
   },
   "include": ["src", "playground", "demo"],
