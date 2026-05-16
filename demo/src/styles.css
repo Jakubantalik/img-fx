@@ -629,13 +629,30 @@ html[data-theme='light'] .playground-toggle:focus-visible {
 
 /* Disabled state — used by the Reveal/Hide button while the playground is
  * paused (the shader isn't running so a reveal would have nothing to fade
- * over). 50% opacity, ignore pointer interactions, and pin the resting
- * background/colour so :hover doesn't override the dim look. */
+ * over). 50% opacity and a not-allowed cursor on hover.
+ *
+ * We deliberately do NOT set `pointer-events: none` here: that would short-
+ * circuit hover detection entirely and the browser would fall back to the
+ * page-default cursor instead of the `not-allowed` we want to show. Click
+ * suppression is handled by the native `disabled` attribute on <button>,
+ * which already blocks click/focus without breaking cursor rendering.
+ *
+ * The :hover/:focus-visible overrides further down would otherwise re-tint
+ * the dim background, so we pin the resting colours on the disabled state. */
 .playground-toggle:disabled,
 .playground-toggle[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
-  pointer-events: none;
+}
+.playground-toggle:disabled:hover,
+.playground-toggle[aria-disabled='true']:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(251, 251, 251, 0.7);
+}
+html[data-theme='light'] .playground-toggle:disabled:hover,
+html[data-theme='light'] .playground-toggle[aria-disabled='true']:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(7, 7, 7, 0.7);
 }
 
 /* Footer */
