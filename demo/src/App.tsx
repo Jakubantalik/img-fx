@@ -7,11 +7,13 @@ import {
   type ImageGenerationTheme
 } from 'img-fx';
 
+// Image pool consumed by all three hero cards + the playground. Kept in sync
+// with `../../../images/` (the source-of-truth folder one level above the
+// library). When you add/remove a file there, mirror it into
+// `demo/public/images/` AND update this list — the four cards coordinate via
+// `excludeSrcs` so they never show the same image at once, which only works
+// if every URL here actually resolves.
 const IMAGE_POOL = [
-  '/images/Untitled.jpg',
-  '/images/Untitled2.jpg',
-  '/images/Untitled4.jpg',
-  '/images/Untitled5.jpg',
   '/images/Screenshot 2026-05-13 at 17.22.03.png',
   '/images/Screenshot 2026-05-13 at 17.34.13.png',
   '/images/Screenshot 2026-05-13 at 17.36.02.png',
@@ -20,8 +22,15 @@ const IMAGE_POOL = [
   '/images/Screenshot 2026-05-13 at 17.37.37.png',
   '/images/Screenshot 2026-05-13 at 17.37.43.png',
   '/images/Screenshot 2026-05-13 at 17.37.49.png',
-  '/images/photo-1773236759289-251d9687b6e3.avif',
-  '/images/photo-1777324369706-609d83aece87.avif'
+  '/images/Screenshot 2026-05-16 at 12.50.03.png',
+  '/images/Screenshot 2026-05-16 at 12.51.21.png',
+  '/images/Screenshot 2026-05-16 at 12.52.16.png',
+  '/images/Screenshot 2026-05-16 at 12.53.21.png',
+  '/images/Screenshot 2026-05-16 at 12.55.02.png',
+  '/images/Untitled.jpg',
+  '/images/Untitled2.jpg',
+  '/images/Untitled4.jpg',
+  '/images/photo-1773236759289-251d9687b6e3.avif'
 ];
 
 function CopyIcon(): JSX.Element {
