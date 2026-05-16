@@ -278,7 +278,7 @@ export function Card() {
           <nav aria-label="External links" className="top-bar-links">
             <a
               className="icon-btn"
-              href="https://github.com/Jakubantalik"
+              href="https://github.com/Jakubantalik/img-fx"
               target="_blank"
               rel="noopener noreferrer"
               aria-label="GitHub repository"
