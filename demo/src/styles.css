@@ -736,6 +736,27 @@ html[data-theme='light'] .footer-name:hover {
     height: 220px;
   }
 
+  /* The playground passes no `className` to <ImageGeneration>, so the
+   * library's `.image-gen-root` wrapper renders with its defaults: it's
+   * `display: inline-block` and shrink-wraps to its content. Our inner
+   * `.playground-card` switches to `width: 100%` at this breakpoint, but
+   * `100%` of a shrink-wrapped (intrinsically 0-width) parent collapses to
+   * zero — the entire card disappears on mobile.
+   *
+   * The hero cards avoid the same trap by attaching `.hero-card{,-tall,-wide}`
+   * to <ImageGeneration>'s `className` prop, which lands on `.image-gen-root`
+   * directly and gives the wrapper a real width. The playground intentionally
+   * keeps its inner card as a normal child, so we fix the wrapper here.
+   *
+   * Promote the wrapper to a full-width block so the percentage chain has
+   * a real value to resolve against; the inner `.playground-card`
+   * `max-width: 280px` still caps the final visual size. */
+  .playground-preview > .image-gen-root {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+  }
+
   .playground-controls {
     flex-wrap: wrap;
     gap: 16px;
