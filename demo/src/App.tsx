@@ -212,25 +212,51 @@ export function App(): JSX.Element {
   // preset's bundled cardBg so we don't tint it.
   const demoCardBg = theme === 'dark' ? '#1B1B1B' : undefined;
   const installCmd = 'npm install img-fx';
+  // Both code snippets below are designed to be copy-paste runnable: full
+  // imports, real function components, inline image URLs as placeholders.
+  // `playgroundCode` mirrors the actual playground toggle logic — note the
+  // `hold: 'manual'` and the `isImageActive()` / `triggerHide()` round-trip,
+  // not a bare `triggerReveal()` (which would auto-hide after `revealHoldMs`).
   const usageCode = `import { ImageGeneration } from 'img-fx';
 
-<ImageGeneration preset="${preset}" images={images} autoReveal>
-  <YourCard />
-</ImageGeneration>`;
-  const playgroundCode = `const ref = useRef<ImageGenerationHandle>(null);
+export function Card() {
+  return (
+    <ImageGeneration
+      preset="${preset}"
+      images={['/a.jpg', '/b.jpg']}
+      autoReveal
+    >
+      <div style={{ width: 280, height: 280, borderRadius: 24 }} />
+    </ImageGeneration>
+  );
+}`;
+  const playgroundCode = `import { useRef } from 'react';
+import { ImageGeneration, type ImageGenerationHandle } from 'img-fx';
 
-<ImageGeneration
-  ref={ref}
-  preset="${preset}"
-  strength={${(strength / 100).toFixed(2)}}
-  images={images}
->
-  <Card />
-</ImageGeneration>
+export function Card() {
+  const ref = useRef<ImageGenerationHandle>(null);
 
-<button onClick={() => ref.current?.triggerReveal()}>
-  Reveal image
-</button>`;
+  const onToggle = () => {
+    const h = ref.current;
+    if (!h) return;
+    if (h.isImageActive()) h.triggerHide();
+    else h.triggerReveal({ hold: 'manual' });
+  };
+
+  return (
+    <>
+      <ImageGeneration
+        ref={ref}
+        preset="${preset}"
+        strength={${(strength / 100).toFixed(2)}}
+        images={['/a.jpg', '/b.jpg']}
+      >
+        <div style={{ width: 280, height: 280, borderRadius: 24 }} />
+      </ImageGeneration>
+      <button onClick={onToggle}>Reveal / hide</button>
+    </>
+  );
+}`;
 
   return (
     <>

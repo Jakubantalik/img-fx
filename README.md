@@ -26,7 +26,7 @@ npm run build:demo   # produce dist-demo/ (static showcase site)
 ```tsx
 import { ImageGeneration } from 'img-fx';
 
-function Card() {
+export function Card() {
   return (
     <ImageGeneration
       preset="dots-organic"
@@ -65,12 +65,12 @@ without enabling `autoReveal`:
 import { useRef } from 'react';
 import { ImageGeneration, type ImageGenerationHandle } from 'img-fx';
 
-function Card() {
+export function Card() {
   const ref = useRef<ImageGenerationHandle>(null);
   return (
     <>
-      <ImageGeneration ref={ref} preset="dots-organic" images={pool}>
-        <div className="card" />
+      <ImageGeneration ref={ref} preset="dots-organic" images={['/a.jpg', '/b.jpg']}>
+        <div className="card" style={{ width: 320, height: 320, borderRadius: 20 }} />
       </ImageGeneration>
       <button onClick={() => ref.current?.triggerReveal()}>
         Reveal image
@@ -82,6 +82,19 @@ function Card() {
 
 `triggerReveal()` runs one full reveal -> hold -> hide pass and is a no-op
 while a reveal is already in progress. Works with or without `autoReveal`.
+
+For a **Reveal / Hide toggle** button (like the playground on the demo
+page), pair `triggerReveal({ hold: 'manual' })` with `triggerHide()` and
+use `isImageActive()` to drive the button label:
+
+```tsx
+const onToggle = () => {
+  const h = ref.current;
+  if (!h) return;
+  if (h.isImageActive()) h.triggerHide();
+  else h.triggerReveal({ hold: 'manual' });
+};
+```
 
 ## Scale invariance
 
