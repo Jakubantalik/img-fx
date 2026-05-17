@@ -29,7 +29,7 @@ import { ImageGeneration } from 'img-fx';
 export function Card() {
   return (
     <ImageGeneration
-      preset="dots-organic"
+      preset="pixels-organic"
       images={['/img/a.jpg', '/img/b.jpg']}
       autoReveal
     >
@@ -43,8 +43,8 @@ export function Card() {
 
 | Prop                | Type                                                                  | Default     | Notes                                                                                            |
 | ------------------- | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| `preset`            | `'dots-organic' \| 'dots-mechanic' \| 'pixels-organic' \| 'pixels-mechanic'` | `'dots-organic'` | Selects the bundled effect preset (Type × Variant).                                              |
-| `theme`             | `'auto' \| 'dark' \| 'light'`                                          | `'auto'`    | `auto` follows `prefers-color-scheme`.                                                           |
+| `preset`            | `'dots-mechanic' \| 'pixels-organic' \| 'pixels-mechanic'`            | `'pixels-organic'` | Selects the bundled effect preset (Type × Variant).                                              |
+| `theme`             | `'auto' \| 'dark' \| 'light'`                                          | `'auto'`    | `auto` checks `<html data-theme>`, `.dark`/`.light` class, inline `color-scheme`, then `prefers-color-scheme`. Live-updates via MutationObserver. |
 | `strength`          | `number` (0..1)                                                       | `1`         | Final opacity multiplier. Doesn't change shader animation.                                       |
 | `cardBg`            | `string` (`#rrggbb` or any CSS color)                                 | preset      | Override the host card surface colour. Applied to the wrapper background AND fed into the shader's `u_cardBg` so colour-proximity logic stays in sync. |
 | `images`            | `string \| string[]`                                                  | `[]`        | Reveal pool. Random pick per cycle, never repeats last.                                          |
@@ -69,7 +69,7 @@ export function Card() {
   const ref = useRef<ImageGenerationHandle>(null);
   return (
     <>
-      <ImageGeneration ref={ref} preset="dots-organic" images={['/a.jpg', '/b.jpg']}>
+      <ImageGeneration ref={ref} preset="pixels-organic" images={['/a.jpg', '/b.jpg']}>
         <div className="card" style={{ width: 320, height: 320, borderRadius: 20 }} />
       </ImageGeneration>
       <button onClick={() => ref.current?.triggerReveal()}>

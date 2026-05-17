@@ -5,10 +5,17 @@ import type { PresetName } from './presets';
 /**
  * Theme mode for the img-fx effect.
  *
- * - `auto` (default): follows the user's `prefers-color-scheme` and updates
- *   live when the OS / browser theme changes. SSR-safe — defaults to `dark`
- *   during SSR and re-resolves on hydration.
- * - `dark` / `light`: pin to a specific mode regardless of system preference.
+ * - `auto` (default): walks a small priority chain and updates live on any
+ *   change:
+ *     1. `<html data-theme="dark|light">`             — shadcn / SSR apps
+ *     2. `<html class="dark">` / `class="light">`     — Tailwind v3 darkMode
+ *     3. `<html style="color-scheme: dark|light">`    — CSS-only toggles
+ *     4. `matchMedia('(prefers-color-scheme: dark)')` — OS preference
+ *     5. `'dark'` fallback (SSR-safe; re-resolves on hydration)
+ *   A MutationObserver on `<html>` re-resolves whenever class / style /
+ *   data-theme changes, so JS theme toggles propagate without a remount.
+ * - `dark` / `light`: pin to a specific mode regardless of system / app
+ *   preference.
  */
 export type ImageGenerationTheme = 'auto' | 'dark' | 'light';
 
@@ -65,12 +72,11 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
   /**
    * Selects which bundled preset to render.
    *
-   * - `dots-organic`   - Plasma noise field rendered as glowing dots.
    * - `dots-mechanic`  - Noise Flow rendered as structured dots.
    * - `pixels-organic` - Chromium Flow rendered as a pixel mosaic.
    * - `pixels-mechanic`- Nebula rendered as a pixel mosaic.
    *
-   * @default 'dots-organic'
+   * @default 'pixels-organic'
    */
   preset?: ImageGenerationPreset;
 

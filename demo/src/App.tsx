@@ -126,13 +126,10 @@ function CopyButton({ text, label }: { text: string; label: string }): JSX.Eleme
   );
 }
 
-/** Subset of `ImageGenerationPreset` exposed in the playground's Type picker.
- *  `dots-organic` (Plasma) is intentionally omitted because its blurred slow
- *  reveal duplicates the visual story already covered by `pixels-organic`. */
-type PlaygroundPreset = Extract<
-  ImageGenerationPreset,
-  'pixels-organic' | 'pixels-mechanic' | 'dots-mechanic'
->;
+/** All bundled presets are exposed in the playground's Type picker. The
+ *  library only ships three since 0.2.0 (the older `dots-organic` Plasma
+ *  variant was removed for lack of distinctive visual coverage). */
+type PlaygroundPreset = ImageGenerationPreset;
 
 /* Label-to-preset mapping reflects the visual character of each shader, NOT
  * the source JSON filename (preset-pixels-style-3 / -4):

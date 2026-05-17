@@ -30,11 +30,45 @@ import type { ImageGenerationHandle, ImageGenerationProps, ImageGenerationTheme 
 
 ensureStylesInjected();
 
+/**
+ * Resolve `'auto'` to a concrete `'dark' | 'light'` value, checking sources in
+ * priority order so the library plays nicely with the most common app-side
+ * theme conventions (not just the OS-level media query):
+ *
+ *   1. `<html data-theme="dark|light">`          — shadcn / many SSR apps
+ *   2. `<html class="dark">` / `class="light">`  — Tailwind v3 darkMode: class
+ *   3. `<html style="color-scheme: dark">`       — CSS-only theme toggles
+ *   4. `matchMedia('(prefers-color-scheme: dark)')` — OS / browser preference
+ *   5. Default `'dark'`                          — SSR-safe fallback
+ *
+ * Live updates: subscribed to both the matchMedia change event AND a
+ * MutationObserver on `<html>` for `class` / `style` / `data-theme` changes,
+ * so toggling a theme-class via JS reflects in the shader without remount.
+ */
+function detectTheme(): 'dark' | 'light' {
+  if (typeof document === 'undefined') return 'dark';
+  const html = document.documentElement;
+
+  const dataTheme = html.getAttribute('data-theme');
+  if (dataTheme === 'dark' || dataTheme === 'light') return dataTheme;
+
+  if (html.classList.contains('dark')) return 'dark';
+  if (html.classList.contains('light')) return 'light';
+
+  const colorScheme = html.style.colorScheme || getComputedStyle(html).colorScheme;
+  if (colorScheme === 'dark') return 'dark';
+  if (colorScheme === 'light') return 'light';
+
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'dark';
+}
+
 function useResolvedTheme(theme: ImageGenerationTheme): 'dark' | 'light' {
   const [resolved, setResolved] = useState<'dark' | 'light'>(() => {
     if (theme !== 'auto') return theme;
-    if (typeof window === 'undefined' || !window.matchMedia) return 'dark';
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    return detectTheme();
   });
 
   useEffect(() => {
@@ -42,12 +76,27 @@ function useResolvedTheme(theme: ImageGenerationTheme): 'dark' | 'light' {
       setResolved(theme);
       return;
     }
-    if (typeof window === 'undefined' || !window.matchMedia) return;
-    const mql = window.matchMedia('(prefers-color-scheme: dark)');
-    const update = (): void => setResolved(mql.matches ? 'dark' : 'light');
+    if (typeof window === 'undefined') return;
+
+    const update = (): void => setResolved(detectTheme());
     update();
-    mql.addEventListener('change', update);
-    return () => mql.removeEventListener('change', update);
+
+    const mql = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+    mql?.addEventListener('change', update);
+
+    let mo: MutationObserver | null = null;
+    if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+      mo = new MutationObserver(update);
+      mo.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class', 'style', 'data-theme']
+      });
+    }
+
+    return () => {
+      mql?.removeEventListener('change', update);
+      mo?.disconnect();
+    };
   }, [theme]);
 
   return resolved;
@@ -62,7 +111,7 @@ function normaliseImages(input: string | string[] | undefined): string[] {
 export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGenerationProps>(function ImageGeneration(
   {
     children,
-    preset = 'dots-organic',
+    preset = 'pixels-organic',
     theme = 'auto',
     strength = 1,
     cardBg: cardBgProp,
@@ -168,6 +217,11 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
     const overlay = overlayCanvasRef.current;
     if (!root || !shader || !overlay) return;
 
+    // Dynamic measure: size from the root's bounding box and corner radius
+    // from the wrapped child's computed style (falls back to the root if the
+    // child has none). The shader can only render a single uniform corner
+    // radius, so we sample `borderTopLeftRadius` and apply it on all four
+    // corners — matches how the canvases inherit border-radius from the root.
     const measure = (): { w: number; h: number; r: number } => {
       const rect = root.getBoundingClientRect();
       const w = Math.max(1, Math.round(rect.width));
@@ -229,20 +283,72 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
     root.style.setProperty('--image-gen-radius', `${initial.r}px`);
     root.style.borderRadius = `${initial.r}px`;
 
+    // Sync the wrapper's dimensions + corner radius to the host card.
+    //
+    // The radius must follow the wrapped child dynamically so the effect
+    // always matches whatever the consumer's card looks like — even if they
+    // toggle a class, adjust an inline style, or swap the child entirely.
+    //
+    // Three observers handle the three change vectors:
+    //   1. ResizeObserver on root  -> wrapper resized (window resize, parent
+    //      flex/grid change, container query, etc.)
+    //   2. ResizeObserver on child -> child intrinsic size changed (text
+    //      reflow, image load), which can also imply a CSS recalc that
+    //      affects radius.
+    //   3. MutationObserver on child -> class / style / data-* attribute
+    //      changes that may swap border-radius without touching size (theme
+    //      toggle, hover/active class flip from parent, etc.).
+    //
+    // All three coalesce through a single rAF so the canvas isn't resized
+    // more than once per frame.
     let resizeRaf = 0;
-    const ro = new ResizeObserver(() => {
-      if (resizeRaf !== 0) return;
-      resizeRaf = requestAnimationFrame(() => {
-        resizeRaf = 0;
-        const next = measure();
-        const i = instanceRef.current;
-        if (!i) return;
+    let lastW = -1;
+    let lastH = -1;
+    let lastR = -1;
+    const applyMeasure = (): void => {
+      resizeRaf = 0;
+      const i = instanceRef.current;
+      if (!i) return;
+      const next = measure();
+      // Skip GL resize if dimensions didn't actually change; still re-apply
+      // border-radius because that's the cheap part and may have moved.
+      if (next.w !== lastW || next.h !== lastH) {
         updateInstanceSize(i, next.w, next.h);
+        lastW = next.w;
+        lastH = next.h;
+      }
+      if (next.r !== lastR) {
         root.style.setProperty('--image-gen-radius', `${next.r}px`);
         root.style.borderRadius = `${next.r}px`;
-      });
-    });
+        lastR = next.r;
+      }
+    };
+    const scheduleMeasure = (): void => {
+      if (resizeRaf !== 0) return;
+      resizeRaf = requestAnimationFrame(applyMeasure);
+    };
+
+    const ro = new ResizeObserver(scheduleMeasure);
     ro.observe(root);
+    const childEl = contentRef.current?.firstElementChild as HTMLElement | null;
+    if (childEl) ro.observe(childEl);
+
+    // Watch for CSS-affecting attribute changes on the child so radius
+    // updates that don't trigger a resize (e.g. swapping a `rounded-lg`
+    // class with `rounded-xl`) are still reflected immediately.
+    let mo: MutationObserver | null = null;
+    if (childEl && typeof MutationObserver !== 'undefined') {
+      mo = new MutationObserver(scheduleMeasure);
+      mo.observe(childEl, {
+        attributes: true,
+        attributeFilter: ['class', 'style']
+      });
+    }
+    // Initialise cached dimensions from the first measure so the guard
+    // above doesn't spuriously re-apply identical values on the next tick.
+    lastW = initial.w;
+    lastH = initial.h;
+    lastR = initial.r;
 
     let io: IntersectionObserver | null = null;
     if (typeof IntersectionObserver !== 'undefined') {
@@ -259,6 +365,7 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
 
     return () => {
       ro.disconnect();
+      mo?.disconnect();
       io?.disconnect();
       if (resizeRaf !== 0) cancelAnimationFrame(resizeRaf);
       cycleRef.current?.dispose();

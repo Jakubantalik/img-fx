@@ -1,22 +1,25 @@
 /**
  * Bundled preset configurations for the img-fx effect.
  *
- * Direct ports of the four JSON files in `presets/`:
- *   • preset-dot-style-1.json     -> dots-organic   (Plasma)
+ * Direct ports of the three JSON files in `presets/`:
  *   • preset-dot-style-2.json     -> dots-mechanic  (Noise Flow)
  *   • preset-pixels-style-3.json  -> pixels-organic  (Chromium Flow)
  *   • preset-pixels-style-4.json  -> pixels-mechanic (Nebula)
  *
  * Each preset ships a `dark` and `light` mode block; the resolved theme picks
  * the right one at runtime.
+ *
+ * Note: an older `dots-organic` (Plasma) variant was removed in 0.2.0 because
+ * its slow, soft-glow look duplicated the on-page coverage already provided by
+ * `dots-mechanic` and wasn't showcased anywhere in the demo. Consumers on
+ * <0.2.0 who used it should switch to `dots-mechanic`.
  */
 
 import { DOTS_MECHANIC } from './dots-mechanic';
-import { DOTS_ORGANIC } from './dots-organic';
 import { PIXELS_MECHANIC } from './pixels-mechanic';
 import { PIXELS_ORGANIC } from './pixels-organic';
 
-export type PresetName = 'dots-organic' | 'dots-mechanic' | 'pixels-organic' | 'pixels-mechanic';
+export type PresetName = 'dots-mechanic' | 'pixels-organic' | 'pixels-mechanic';
 export type PresetTheme = 'dark' | 'light';
 
 /** Per-mosaic-type render config (shader picks one based on `dotMode`). */
@@ -128,7 +131,6 @@ export interface Preset {
 }
 
 export const PRESETS: Record<PresetName, Preset> = {
-  'dots-organic': DOTS_ORGANIC,
   'dots-mechanic': DOTS_MECHANIC,
   'pixels-organic': PIXELS_ORGANIC,
   'pixels-mechanic': PIXELS_MECHANIC
@@ -145,4 +147,4 @@ export function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
-export { DOTS_ORGANIC, DOTS_MECHANIC, PIXELS_ORGANIC, PIXELS_MECHANIC };
+export { DOTS_MECHANIC, PIXELS_ORGANIC, PIXELS_MECHANIC };
