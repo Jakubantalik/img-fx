@@ -305,7 +305,7 @@ export function Card() {
             />
           </div>
           <h1 className="title">Image generation</h1>
-          <p className="subtitle-sm">Animated image generation and reveal component</p>
+          <p className="subtitle-sm">Image generation loader and reveal component</p>
         </header>
 
         <section className="examples-section" aria-label="Effect demonstrations">
