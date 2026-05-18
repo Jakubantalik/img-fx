@@ -13,7 +13,7 @@
  * forced to 0 so the mask reads from the raw shader colour field rather than
  * the pixelated mosaic.
  */
-import { hexToRgb, type MaskShape, type PresetMode } from '../presets';
+import { parseCssColor, type MaskShape, type PresetMode } from '../presets';
 import { ease } from './tween';
 import { effectiveCardBg, type Instance, type SharedRenderer } from './renderer';
 
@@ -311,20 +311,24 @@ function paintMaskedFrame(
       shaderColor5: 4
     };
     if (colorMap[maskShape] != null) {
-      targetColor = hexToRgb(preset.colors[colorMap[maskShape]]);
+      targetColor = parseCssColor(preset.colors[colorMap[maskShape]]);
     }
     if (maskShape === 'shaderHighlight') {
-      const bg = hexToRgb(effectiveCardBg(inst));
+      // `effectiveCardBg` may return any CSS colour the consumer passed via
+      // the `cardBg` prop (rgba, hsl, named, …). parseCssColor handles all
+      // of it; alpha is dropped so the proximity test below stays in RGB
+      // space against the same opaque tint the shader uniform sees.
+      const bg = parseCssColor(effectiveCardBg(inst));
       highlightColors = [];
       for (let i = 0; i < 5; i++) {
-        const c = hexToRgb(preset.colors[i]);
+        const c = parseCssColor(preset.colors[i]);
         const dr = c[0] - bg[0];
         const dg = c[1] - bg[1];
         const db = c[2] - bg[2];
         const distC = Math.sqrt(dr * dr + dg * dg + db * db);
         if (distC > 0.15) highlightColors.push(c);
       }
-      if (highlightColors.length === 0) highlightColors = [hexToRgb(preset.colors[0])];
+      if (highlightColors.length === 0) highlightColors = [parseCssColor(preset.colors[0])];
     }
   }
 

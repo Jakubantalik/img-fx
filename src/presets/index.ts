@@ -136,7 +136,15 @@ export const PRESETS: Record<PresetName, Preset> = {
   'pixels-mechanic': PIXELS_MECHANIC
 };
 
-/** `#rrggbb` -> normalized [r, g, b] in 0..1. */
+/**
+ * `#rrggbb` -> normalized [r, g, b] in 0..1.
+ *
+ * @deprecated Use {@link parseCssColor} instead. `hexToRgb` only handles
+ * `#rgb` / `#rrggbb` input — passing anything else (e.g. `rgba(...)`,
+ * a colour name, `hsl(...)`) produces `NaN` channels and breaks shader
+ * uniforms. Kept exported for backward compatibility; internal callers
+ * now route through `parseCssColor`.
+ */
 export function hexToRgb(hex: string): [number, number, number] {
   let h = hex.replace('#', '');
   if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
@@ -145,6 +153,99 @@ export function hexToRgb(hex: string): [number, number, number] {
     parseInt(h.slice(2, 4), 16) / 255,
     parseInt(h.slice(4, 6), 16) / 255
   ];
+}
+
+/**
+ * Cached singleton 2D context. We delegate non-hex parsing to the browser's
+ * own CSS colour parser by writing into `ctx.fillStyle` and reading back the
+ * canonical form. Allocated once per page, reused for every parse call.
+ */
+let _colorCtx: CanvasRenderingContext2D | null | undefined;
+function getColorCtx(): CanvasRenderingContext2D | null {
+  if (_colorCtx !== undefined) return _colorCtx;
+  if (typeof document === 'undefined') {
+    _colorCtx = null;
+    return null;
+  }
+  const c = document.createElement('canvas');
+  c.width = 1;
+  c.height = 1;
+  _colorCtx = c.getContext('2d');
+  return _colorCtx;
+}
+
+/**
+ * Parse any CSS colour string to normalised `[r, g, b]` in 0..1.
+ *
+ * Accepts every value the host browser understands: hex (`#rgb`,
+ * `#rrggbb`, `#rrggbbaa`), `rgb()` / `rgba()`, `hsl()` / `hsla()`, named
+ * colours (`white`, `crimson`, …), and modern syntaxes like
+ * `color(display-p3 …)`.
+ *
+ * **Alpha is dropped.** The shader's `u_cardBg` uniform is opaque RGB —
+ * the renderer has no source for what's behind the card, so it can't
+ * composite a translucent background colour correctly. The wrapper's CSS
+ * `background` keeps the original string with its alpha intact, so
+ * visually the card surface stays translucent; the shader's contrast /
+ * proximity logic just uses the underlying opaque tint. If precise shader
+ * behaviour matters, pass the opaque colour you actually want the shader
+ * to reason against.
+ *
+ * Hex strings take a synchronous fast path that works in SSR. Everything
+ * else needs the browser; if no canvas is available (Node, broken DOM) or
+ * the input is unparseable, falls back to `[0, 0, 0]` (black).
+ */
+export function parseCssColor(input: string): [number, number, number] {
+  if (typeof input !== 'string' || input.length === 0) return [0, 0, 0];
+
+  // Hex fast path — synchronous, SSR-friendly, no DOM dependency.
+  if (input[0] === '#') {
+    let h = input.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    if ((h.length === 6 || h.length === 8) && /^[0-9a-fA-F]+$/.test(h)) {
+      return [
+        parseInt(h.slice(0, 2), 16) / 255,
+        parseInt(h.slice(2, 4), 16) / 255,
+        parseInt(h.slice(4, 6), 16) / 255
+      ];
+    }
+  }
+
+  // Anything else: delegate to the browser. `ctx.fillStyle = badInput`
+  // silently rejects and keeps the previous value, so probe with TWO
+  // distinct sentinels — invalid input will preserve whichever sentinel
+  // was set, while valid input canonicalises to the same string both
+  // times. A single sentinel would give a false rejection whenever the
+  // user's input happened to canonicalise to that same sentinel (e.g.
+  // `'magenta'` -> `'#ff00ff'`).
+  const ctx = getColorCtx();
+  if (!ctx) return [0, 0, 0];
+
+  ctx.fillStyle = '#000000';
+  ctx.fillStyle = input;
+  const after1 = ctx.fillStyle as string;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = input;
+  const after2 = ctx.fillStyle as string;
+  if (after1 !== after2) {
+    // Input was rejected — readback equals whichever sentinel was set.
+    return [0, 0, 0];
+  }
+  const out = after1;
+
+  if (out[0] === '#') {
+    return [
+      parseInt(out.slice(1, 3), 16) / 255,
+      parseInt(out.slice(3, 5), 16) / 255,
+      parseInt(out.slice(5, 7), 16) / 255
+    ];
+  }
+  const m = out.match(/^rgba?\(\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)\s*,\s*(-?[\d.]+)/);
+  if (m) {
+    const clamp = (n: number): number => Math.max(0, Math.min(255, n)) / 255;
+    return [clamp(parseFloat(m[1])), clamp(parseFloat(m[2])), clamp(parseFloat(m[3]))];
+  }
+  return [0, 0, 0];
 }
 
 export { DOTS_MECHANIC, PIXELS_ORGANIC, PIXELS_MECHANIC };

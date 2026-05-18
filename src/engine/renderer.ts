@@ -18,7 +18,7 @@
  * (peer dep) so the GLSL from image.html drops in unchanged.
  */
 import * as THREE from 'three';
-import { hexToRgb, type PresetMode } from '../presets';
+import { parseCssColor, type PresetMode } from '../presets';
 import { FRAG_SRC, VERT_SRC } from './shaders';
 import type { RevealState } from './reveal';
 
@@ -245,11 +245,15 @@ function uploadInstanceUniforms(s: SharedRenderer, inst: Instance): void {
   u.u_fadeStr.value = mosaic.fadeStr;
 
   for (let i = 0; i < 7; i++) {
-    const [r, g, b] = hexToRgb(p.colors[i]);
+    const [r, g, b] = parseCssColor(p.colors[i]);
     (u[`u_color${i + 1}`].value as THREE.Color).setRGB(r, g, b);
     u[`u_alpha${i + 1}`].value = p.alphas[i];
   }
-  const [br, bg, bb] = hexToRgb(inst.cardBgOverride ?? p.cardBg);
+  // `cardBgOverride` comes straight from the consumer's `cardBg` prop and is
+  // documented as accepting any CSS colour, so route through parseCssColor
+  // (alpha is dropped — see the parseCssColor JSDoc for why). The bundled
+  // preset's own `cardBg` is always hex and hits the fast path.
+  const [br, bg, bb] = parseCssColor(inst.cardBgOverride ?? p.cardBg);
   (u.u_cardBg.value as THREE.Color).setRGB(br, bg, bb);
 
   inst.uniformsDirty = false;

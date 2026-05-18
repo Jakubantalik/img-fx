@@ -96,15 +96,26 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
   strength?: number;
 
   /**
-   * Card background color (`#rrggbb` or any valid CSS color). Applied to the
-   * wrapper element AND fed into the shader's `u_cardBg` uniform — colour
-   * proximity / luminance contrast logic in the shader uses this so any
-   * shader colours that match the card background get faded out, keeping the
-   * effect visually balanced against the host card's surface.
+   * Card background colour. Accepts any CSS colour string the browser can
+   * parse — hex (`#rgb` / `#rrggbb` / `#rrggbbaa`), `rgb()` / `rgba()`,
+   * `hsl()` / `hsla()`, named colours, modern `color(...)` syntax — and is
+   * applied two ways:
    *
-   * Use this to keep colours in sync when the host card surface changes
-   * (e.g. dark mode card swatch). When omitted, the preset's bundled
-   * `cardBg` value is used.
+   *   1. Verbatim as the wrapper element's CSS `background`, so the
+   *      original alpha is preserved visually.
+   *   2. Parsed to an opaque RGB triple for the shader's `u_cardBg`
+   *      uniform, which drives colour-proximity / contrast logic so any
+   *      shader colours that match the card background get faded out and
+   *      the effect stays visually balanced.
+   *
+   * Alpha is intentionally dropped when feeding the shader — the renderer
+   * has no source for what's behind a translucent card and can't composite
+   * correctly. If precise shader behaviour matters under a translucent
+   * surface, pass the opaque colour you want the shader to reason against.
+   *
+   * Useful for keeping colours in sync when the host card surface changes
+   * (e.g. dark-mode card swatch). When omitted, the preset's bundled
+   * `cardBg` (always opaque hex) is used.
    */
   cardBg?: string;
 

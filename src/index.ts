@@ -11,6 +11,7 @@ export type {
 export {
   PRESETS,
   hexToRgb,
+  parseCssColor,
   type EasingKey,
   type MaskShape,
   type MosaicConfig,
