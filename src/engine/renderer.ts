@@ -5,14 +5,27 @@
  *   1. One module-scope SharedRenderer is lazily created on first card mount.
  *      It owns a single offscreen <canvas> + THREE.WebGLRenderer + ortho
  *      camera + ShaderMaterial + plane mesh.
- *   2. Each card registers an Instance: a visible 2D canvas + its own uniform
- *      cache + dirty flag + reveal/cycle state. Per frame the loop iterates
- *      every visible/unpaused instance, resizes the GL canvas to the
- *      instance's CSS size × DPR, uploads its uniforms, renders, then
- *      ctx.drawImage()'s the GL output into the instance's visible canvas.
- *   3. IntersectionObserver pauses offscreen instances; when no instances are
- *      active, the rAF loop short-circuits.
- *   4. Last unmount disposes everything (geometry, material, renderer).
+ *   2. Each card registers an Instance: a visible 2D canvas + its own
+ *      uniform cache + dirty flag + reveal/cycle state. Per frame the loop
+ *      sizes the SHARED GL canvas to the largest active card (grow-only —
+ *      never shrinks), then for each visible/unpaused instance: sets
+ *      u_resolution to the instance's pixel size, sets the GL viewport +
+ *      scissor to the bottom-left iw×ih sub-rect (the only sub-rect where
+ *      `gl_FragCoord / u_resolution` lands in [0..1]), renders, and copies
+ *      that sub-rect into the visible 2D canvas via drawImage.
+ *      This avoids reallocating the GL drawing buffer every frame when
+ *      multiple cards of different sizes share the renderer — the original
+ *      "setSize per instance per frame" churn was exhausting Chrome's GPU
+ *      memory budget over the course of a few minutes of continuous
+ *      animation and crashing the WebGL context.
+ *   3. IntersectionObserver pauses offscreen instances; when no instances
+ *      are active the rAF loop is cancelled entirely (re-armed by the next
+ *      visibility / pause / size change), so a fully-offscreen page costs
+ *      essentially nothing.
+ *   4. WebGL context loss is handled: on `webglcontextlost` the rAF is
+ *      cancelled and uniforms marked dirty; on `webglcontextrestored` the
+ *      renderer recovers and resumes.
+ *   5. Last unmount disposes everything (geometry, material, renderer).
  *
  * This mirrors the metal-fx shared-renderer pattern but built around Three.js
  * (peer dep) so the GLSL from image.html drops in unchanged.
@@ -81,6 +94,9 @@ interface SharedRenderer {
   mesh: THREE.Mesh;
   uniforms: Record<string, THREE.IUniform>;
   instances: Set<Instance>;
+  /** 0 means the rAF loop is currently asleep (no active instances).
+   *  The loop is re-armed by `wakeLoop()` whenever an instance becomes
+   *  visible/unpaused or its size grows past the current GL canvas. */
   rafId: number;
   lastFrameMs: number;
   lastTickMs: number;
@@ -89,10 +105,10 @@ interface SharedRenderer {
    *  again back-to-back (e.g. single-card page, manual repaint). Null after
    *  destroy or when the next instance can't trust this cache. */
   lastInstance: Instance | null;
-  /** Cached glCanvas pixel size (after `setSize` × DPR). Used to skip the
-   *  no-op re-allocation when target size matches. */
-  lastSizeW: number;
-  lastSizeH: number;
+  /** WebGL context loss handlers — kept so we can detach on dispose. */
+  onContextLost: ((e: Event) => void) | null;
+  onContextRestored: (() => void) | null;
+  contextLost: boolean;
 }
 
 let SHARED: SharedRenderer | null = null;
@@ -151,11 +167,17 @@ function ensureShared(): SharedRenderer {
   glCanvas.width = 8;
   glCanvas.height = 8;
 
+  // `preserveDrawingBuffer: false` is the default and the right choice here:
+  // we drawImage() the GL canvas into the visible 2D canvas IMMEDIATELY after
+  // every renderer.render() in the same JS tick, so we never need the swap
+  // chain to preserve back-buffer contents between frames. Preserving it was
+  // forcing extra GPU memory retention which compounded the GL-buffer churn
+  // issue and contributed to multi-minute crashes in Chrome.
   const renderer = new THREE.WebGLRenderer({
     canvas: glCanvas,
     alpha: true,
     premultipliedAlpha: false,
-    preserveDrawingBuffer: true,
+    preserveDrawingBuffer: false,
     antialias: false,
     powerPreference: 'high-performance'
   });
@@ -197,17 +219,50 @@ function ensureShared(): SharedRenderer {
     lastFrameMs: 0,
     lastTickMs: performance.now(),
     lastInstance: null,
-    lastSizeW: 0,
-    lastSizeH: 0
+    onContextLost: null,
+    onContextRestored: null,
+    contextLost: false
   };
 
-  startLoop();
+  // WebGL context loss recovery. Without this, a transient GPU hiccup (driver
+  // reset, tab backgrounded too long, GPU OOM, etc.) would permanently freeze
+  // every <ImageGeneration> on the page. `preventDefault()` on `lost` tells
+  // the browser we'd like a restored context; on `restored` we re-arm the
+  // loop and force every instance to re-upload its uniforms.
+  const onLost = (e: Event): void => {
+    e.preventDefault();
+    if (!SHARED) return;
+    SHARED.contextLost = true;
+    if (SHARED.rafId !== 0) {
+      cancelAnimationFrame(SHARED.rafId);
+      SHARED.rafId = 0;
+    }
+  };
+  const onRestored = (): void => {
+    if (!SHARED) return;
+    SHARED.contextLost = false;
+    SHARED.lastInstance = null;
+    for (const inst of SHARED.instances) inst.uniformsDirty = true;
+    wakeLoop();
+  };
+  glCanvas.addEventListener('webglcontextlost', onLost as EventListener, false);
+  glCanvas.addEventListener('webglcontextrestored', onRestored, false);
+  SHARED.onContextLost = onLost;
+  SHARED.onContextRestored = onRestored;
+
+  wakeLoop();
   return SHARED;
 }
 
 function destroyShared(): void {
   if (!SHARED) return;
-  cancelAnimationFrame(SHARED.rafId);
+  if (SHARED.rafId !== 0) cancelAnimationFrame(SHARED.rafId);
+  if (SHARED.onContextLost) {
+    SHARED.glCanvas.removeEventListener('webglcontextlost', SHARED.onContextLost as EventListener, false);
+  }
+  if (SHARED.onContextRestored) {
+    SHARED.glCanvas.removeEventListener('webglcontextrestored', SHARED.onContextRestored, false);
+  }
   SHARED.geometry.dispose();
   SHARED.material.dispose();
   SHARED.renderer.dispose();
@@ -264,35 +319,81 @@ export function effectiveCardBg(inst: Instance): string {
   return inst.cardBgOverride ?? inst.preset.cardBg;
 }
 
-/** Inner render — assumes the caller has already gated on visibility / size /
- *  pause where appropriate. Mutates GL canvas size + uniforms for this
- *  instance, draws one frame, and copies the result into the visible canvas.
+/** Compute the pixel-space size an instance currently needs from the GL
+ *  framebuffer (CSS px × DPR, floored, min 1). Used by both the grow-only
+ *  canvas sizer and per-paint viewport setup so the two stay in lockstep. */
+function instancePixelSize(inst: Instance): { iw: number; ih: number } {
+  return {
+    iw: Math.max(1, Math.floor(inst.cssWidth * inst.dpr)),
+    ih: Math.max(1, Math.floor(inst.cssHeight * inst.dpr))
+  };
+}
+
+/** Grow the shared GL canvas if any active instance now needs more pixels
+ *  than it currently provides. NEVER SHRINKS — frequent shrink/grow cycles
+ *  reallocate the GL drawing buffer (each call is 1-10 MB of GPU memory
+ *  churn) and that was the primary cause of multi-minute Chrome crashes.
  *
- *  Two perf guards layered in:
- *  1. `setSize` is skipped when the GL canvas is already at the target
- *     resolution. Three.js's `setSize` re-assigns `canvas.width/height`
- *     unconditionally which forces a drawing-buffer reallocation each call.
- *  2. Full uniform block re-upload is skipped when the same instance just
- *     rendered AND its `uniformsDirty` flag is clear (only `u_time` and
- *     `u_resolution` need refreshing in that case). For multi-card pages
- *     instances rotate so this always re-uploads, but it removes the cost
- *     for single-card pages, manual `renderInstanceOnce` repaints, and
- *     reveal sampling re-renders that don't switch instance. */
-function paintInstance(s: SharedRenderer, inst: Instance, nowMs: number): void {
-  const w = Math.max(1, Math.round(inst.cssWidth));
-  const h = Math.max(1, Math.round(inst.cssHeight));
-  // Pre-compute target pixel size so we can skip `setSize` no-ops.
-  const dpr = s.renderer.getPixelRatio();
-  const targetW = Math.max(1, Math.floor(w * dpr));
-  const targetH = Math.max(1, Math.floor(h * dpr));
-  if (s.lastSizeW !== targetW || s.lastSizeH !== targetH) {
-    s.renderer.setSize(w, h, false);
-    s.lastSizeW = s.glCanvas.width;
-    s.lastSizeH = s.glCanvas.height;
+ *  Called once at the top of each frame (before iterating instances) so the
+ *  canvas size is stable for the entire tick. */
+function maybeGrowGlCanvas(s: SharedRenderer): void {
+  let needCssW = 0;
+  let needCssH = 0;
+  for (const inst of s.instances) {
+    if (!inst.visible || inst.paused) continue;
+    if (inst.cssWidth > needCssW) needCssW = inst.cssWidth;
+    if (inst.cssHeight > needCssH) needCssH = inst.cssHeight;
   }
-  (s.uniforms.u_resolution.value as THREE.Vector2).set(s.glCanvas.width, s.glCanvas.height);
-  // u_dpr lets the shader convert physical pixels back to CSS px so cell sizes,
-  // vignette, and edge fade stay scale-invariant across card sizes & DPRs.
+  if (needCssW <= 0 || needCssH <= 0) return;
+  const dpr = s.renderer.getPixelRatio();
+  const needPxW = Math.max(1, Math.floor(needCssW * dpr));
+  const needPxH = Math.max(1, Math.floor(needCssH * dpr));
+  const curW = s.glCanvas.width;
+  const curH = s.glCanvas.height;
+  if (needPxW <= curW && needPxH <= curH) return;
+  // Pass CSS px (setSize multiplies by pixel ratio internally). Pick the max
+  // of the current and required dimensions so neither axis ever contracts.
+  const targetCssW = Math.max(needCssW, curW / Math.max(dpr, 0.0001));
+  const targetCssH = Math.max(needCssH, curH / Math.max(dpr, 0.0001));
+  s.renderer.setSize(targetCssW, targetCssH, false);
+}
+
+/** Inner render — assumes the caller has already gated on visibility / size /
+ *  pause where appropriate AND has called `maybeGrowGlCanvas` for the frame.
+ *
+ *  Renders the instance into the BOTTOM-LEFT iw×ih sub-rect of the shared GL
+ *  canvas. That sub-rect is the only one where the shader's
+ *  `uv = gl_FragCoord.xy / u_resolution` lands in `[0..1]² ` (because
+ *  gl_FragCoord is window-relative in WebGL with origin at the bottom-left,
+ *  and we set u_resolution to the instance's pixel size). After rendering,
+ *  we drawImage() that sub-rect into the visible 2D canvas — the source
+ *  rect's image-space y is `glCanvas.height - ih` because image-space coords
+ *  have origin at the top-left while the framebuffer's origin is at the
+ *  bottom-left.
+ *
+ *  Uniform block re-upload is skipped when the same clean instance just
+ *  rendered AND its `uniformsDirty` flag is clear (only `u_time` and
+ *  `u_resolution` need refreshing in that case). For multi-card pages
+ *  instances rotate so this always re-uploads, but it removes the cost
+ *  for single-card pages, manual `renderInstanceOnce` repaints, and
+ *  reveal sampling re-renders that don't switch instance. */
+function paintInstance(s: SharedRenderer, inst: Instance, nowMs: number): void {
+  if (s.contextLost) return;
+  const { iw, ih } = instancePixelSize(inst);
+
+  // Constrain rendering to the instance-sized bottom-left sub-rect. setViewport
+  // and setScissor on the WebGLRenderer accept CSS pixels and multiply by the
+  // renderer's pixel ratio internally, so pass the CSS dims to keep math simple.
+  const cssW = Math.max(1, inst.cssWidth);
+  const cssH = Math.max(1, inst.cssHeight);
+  s.renderer.setViewport(0, 0, cssW, cssH);
+  s.renderer.setScissor(0, 0, cssW, cssH);
+  s.renderer.setScissorTest(true);
+
+  // u_resolution drives the shader's cell sizes, vignette, edge fade etc.
+  // It MUST match the viewport size so `gl_FragCoord / u_resolution` produces
+  // sensible UVs inside the rendered sub-rect.
+  (s.uniforms.u_resolution.value as THREE.Vector2).set(iw, ih);
   s.uniforms.u_dpr.value = inst.dpr || 1;
 
   // Reuse uniforms when the same clean instance is rendering again.
@@ -305,13 +406,18 @@ function paintInstance(s: SharedRenderer, inst: Instance, nowMs: number): void {
 
   s.renderer.render(s.scene, s.camera);
 
-  // Copy GL output into the instance's visible 2D canvas.
-  if (inst.canvas.width !== s.glCanvas.width || inst.canvas.height !== s.glCanvas.height) {
-    inst.canvas.width = s.glCanvas.width;
-    inst.canvas.height = s.glCanvas.height;
+  // Resize the visible canvas to the instance's pixel size (this is cheap —
+  // it only triggers a reallocation when the instance itself resizes, not
+  // when other instances do).
+  if (inst.canvas.width !== iw || inst.canvas.height !== ih) {
+    inst.canvas.width = iw;
+    inst.canvas.height = ih;
   }
-  inst.ctx.clearRect(0, 0, inst.canvas.width, inst.canvas.height);
-  inst.ctx.drawImage(s.glCanvas, 0, 0);
+  inst.ctx.clearRect(0, 0, iw, ih);
+  // Source rect is the bottom-left iw×ih of the framebuffer. In image-space
+  // (top-left origin) that lives at sy = glCanvas.height - ih.
+  const sy = s.glCanvas.height - ih;
+  inst.ctx.drawImage(s.glCanvas, 0, sy, iw, ih, 0, 0, iw, ih);
 
   // Reveal pipeline (defined in reveal.ts) — paints overlay image into its
   // own mask canvas; we just notify it that the shader frame just finished.
@@ -339,8 +445,13 @@ function renderInstance(s: SharedRenderer, inst: Instance, nowMs: number): void 
  */
 export function renderInstanceOnce(inst: Instance): void {
   if (!SHARED) return;
+  if (SHARED.contextLost) return;
   if (!inst.visible) return;
   if (inst.cssWidth < 1 || inst.cssHeight < 1) return;
+  // Make sure the GL canvas is big enough for this one-shot repaint even if
+  // the loop is currently asleep (no auto-render instance is keeping it
+  // sized).
+  maybeGrowGlCanvas(SHARED);
   paintInstance(SHARED, inst, performance.now());
 }
 
@@ -350,38 +461,66 @@ export function setAfterTick(cb: (() => void) | null): void {
   onAfterTick = cb;
 }
 
-function startLoop(): void {
-  const tick = (now: number): void => {
-    if (!SHARED) return;
-    SHARED.rafId = requestAnimationFrame(tick);
+/** Quick check: is at least one instance currently animating (visible &
+ *  unpaused)? Used to decide whether the rAF loop should sleep. */
+function hasActiveInstances(s: SharedRenderer): boolean {
+  for (const inst of s.instances) {
+    if (inst.visible && !inst.paused) return true;
+  }
+  return false;
+}
 
-    const elapsed = now - SHARED.lastFrameMs;
-    if (elapsed < frameIntervalMs) return;
-    SHARED.lastFrameMs = now - (elapsed % frameIntervalMs);
+const tick = (now: number): void => {
+  if (!SHARED) return;
+  if (SHARED.contextLost) {
+    SHARED.rafId = 0;
+    return;
+  }
 
-    const deltaSec = (now - SHARED.lastTickMs) / 1000;
-    SHARED.lastTickMs = now;
-
-    let hasActive = false;
-    for (const inst of SHARED.instances) {
-      if (inst.visible && !inst.paused) {
-        hasActive = true;
-        inst.accumulatedTime += deltaSec;
-      }
-    }
-    if (!hasActive) {
-      onAfterTick?.();
-      return;
-    }
-
-    for (const inst of SHARED.instances) {
-      renderInstance(SHARED, inst, now);
-    }
-
+  // Sleep the rAF loop when nothing is animating. The loop re-arms via
+  // `wakeLoop()` when visibility / pause / size next changes — so a fully
+  // offscreen or fully-paused page costs essentially zero CPU.
+  if (!hasActiveInstances(SHARED)) {
+    SHARED.rafId = 0;
     onAfterTick?.();
-  };
-  SHARED!.lastTickMs = performance.now();
-  SHARED!.rafId = requestAnimationFrame(tick);
+    return;
+  }
+
+  SHARED.rafId = requestAnimationFrame(tick);
+
+  const elapsed = now - SHARED.lastFrameMs;
+  if (elapsed < frameIntervalMs) return;
+  SHARED.lastFrameMs = now - (elapsed % frameIntervalMs);
+
+  const deltaSec = (now - SHARED.lastTickMs) / 1000;
+  SHARED.lastTickMs = now;
+
+  for (const inst of SHARED.instances) {
+    if (inst.visible && !inst.paused) {
+      inst.accumulatedTime += deltaSec;
+    }
+  }
+
+  // Grow-only resize ONCE per frame (not per instance) so the GL drawing
+  // buffer is reallocated at most a handful of times across the lifetime of
+  // the page rather than tens of thousands of times per minute.
+  maybeGrowGlCanvas(SHARED);
+
+  for (const inst of SHARED.instances) {
+    renderInstance(SHARED, inst, now);
+  }
+
+  onAfterTick?.();
+};
+
+/** Arm the rAF loop if it's currently asleep. Safe to call repeatedly. */
+function wakeLoop(): void {
+  if (!SHARED) return;
+  if (SHARED.contextLost) return;
+  if (SHARED.rafId !== 0) return;
+  SHARED.lastTickMs = performance.now();
+  SHARED.lastFrameMs = SHARED.lastTickMs;
+  SHARED.rafId = requestAnimationFrame(tick);
 }
 
 /** Public API */
@@ -416,6 +555,7 @@ export function createInstance(opts: CreateInstanceOptions): Instance {
     startedAtMs: performance.now()
   };
   s.instances.add(inst);
+  wakeLoop();
   return inst;
 }
 
@@ -450,10 +590,12 @@ export function setInstanceCardBg(inst: Instance, cardBg: string | null): void {
 
 export function setInstanceVisible(inst: Instance, visible: boolean): void {
   inst.visible = visible;
+  if (visible) wakeLoop();
 }
 
 export function setInstancePaused(inst: Instance, paused: boolean): void {
   inst.paused = paused;
+  if (!paused) wakeLoop();
 }
 
 export function setInstanceStrength(inst: Instance, strength: number): void {
@@ -495,11 +637,9 @@ export function setMaxDpr(dpr: number): void {
     inst.dpr = next;
     inst.uniformsDirty = true;
   }
-  // Invalidate size + uniform caches so the next paint really resizes
-  // and re-uploads, not just rolls forward with the stale values.
+  // Invalidate the uniform cache so the next paint re-uploads rather than
+  // rolling forward with stale per-instance values.
   SHARED.lastInstance = null;
-  SHARED.lastSizeW = 0;
-  SHARED.lastSizeH = 0;
 }
 
 /** Read the current cap (frames per second). */

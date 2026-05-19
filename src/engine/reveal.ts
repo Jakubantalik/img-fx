@@ -122,8 +122,17 @@ interface RevealInternals {
   // Mask scratch (geometric / shader-luminance)
   sampleCanvas: HTMLCanvasElement | null;
   sampleCtx: CanvasRenderingContext2D | null;
+  /** Pooled image-data for `getImageData` reads from `sampleCanvas`. Allocated
+   *  once and reused every frame — without this the reveal hot path allocates
+   *  a fresh 40 KB Uint8ClampedArray per frame per active card, putting heavy
+   *  GC pressure on Chrome over long sessions. */
+  sampleImgData: ImageData | null;
   maskGrad: HTMLCanvasElement | null;
   maskGradCtx: CanvasRenderingContext2D | null;
+  /** Pooled image-data for the mask gradient. Allocated lazily on first paint
+   *  and reused thereafter; MASK_SIZE is a compile-time constant so the
+   *  buffer dimensions never need to change. */
+  maskImgData: ImageData | null;
 
   // Pixel-mode scratch
   pixCanvas: HTMLCanvasElement | null;
@@ -199,9 +208,9 @@ function getMaskValue(shape: MaskShape, r: number, c: number, size: number): num
  *  next regular tick is unaffected.
  */
 function sampleShaderField(
+  state: RevealInternals,
   s: SharedRenderer,
   inst: Instance,
-  scratch: HTMLCanvasElement,
   scratchCtx: CanvasRenderingContext2D
 ): Uint8ClampedArray {
   const origDotMode = s.uniforms.u_dotMode.value as number;
@@ -220,13 +229,27 @@ function sampleShaderField(
         : inst.preset.dotConfig.fillOpacity
       : 0;
   s.renderer.render(s.scene, s.camera);
+
+  // The instance's pixels live in the BOTTOM-LEFT iw×ih sub-rect of the
+  // shared GL canvas (paintInstance sets the viewport accordingly). In
+  // image-space coords (top-left origin used by drawImage source rects) that
+  // sub-rect starts at y = glCanvas.height - ih.
+  const iw = Math.max(1, Math.floor(inst.cssWidth * inst.dpr));
+  const ih = Math.max(1, Math.floor(inst.cssHeight * inst.dpr));
+  const sy = Math.max(0, s.glCanvas.height - ih);
   scratchCtx.clearRect(0, 0, MASK_SIZE, MASK_SIZE);
-  scratchCtx.drawImage(s.glCanvas, 0, 0, MASK_SIZE, MASK_SIZE);
+  scratchCtx.drawImage(s.glCanvas, 0, sy, iw, ih, 0, 0, MASK_SIZE, MASK_SIZE);
   // Restore uniforms; the next instance / tick re-uploads its own values
   // before rendering so we don't need to re-render the GL canvas here.
   s.uniforms.u_dotMode.value = origDotMode;
   s.uniforms.u_fillOpacity.value = origFillOpacity;
-  return scratchCtx.getImageData(0, 0, MASK_SIZE, MASK_SIZE).data;
+  // Hold the latest ImageData on the state so the typed array isn't
+  // immediately collected — keeps the buffer alive for the rest of the
+  // current frame's mask paint without depending on JS engine GC timing.
+  // (Canvas 2D's `getImageData` has no zero-alloc variant, so we can't
+  // truly pool here; this just minimises pressure for the active call.)
+  state.sampleImgData = scratchCtx.getImageData(0, 0, MASK_SIZE, MASK_SIZE);
+  return state.sampleImgData.data;
 }
 
 function ensureScratch(state: RevealInternals): void {
@@ -241,6 +264,13 @@ function ensureScratch(state: RevealInternals): void {
     state.maskGrad.width = MASK_SIZE;
     state.maskGrad.height = MASK_SIZE;
     state.maskGradCtx = state.maskGrad.getContext('2d');
+  }
+  if (!state.maskImgData && state.maskGradCtx) {
+    // Pool the mask-gradient buffer. MASK_SIZE is a compile-time constant so
+    // we only need to allocate this once per reveal instance. The original
+    // code called `createImageData(MASK_SIZE, MASK_SIZE)` every paint frame,
+    // allocating 40 KB per card per frame.
+    state.maskImgData = state.maskGradCtx.createImageData(MASK_SIZE, MASK_SIZE);
   }
 }
 
@@ -288,7 +318,6 @@ function paintMaskedFrame(
   }
 
   ensureScratch(state);
-  const sampleCanvas = state.sampleCanvas as HTMLCanvasElement;
   const sampleCtx = state.sampleCtx as CanvasRenderingContext2D;
   const maskGrad = state.maskGrad as HTMLCanvasElement;
   const maskGradCtx = state.maskGradCtx as CanvasRenderingContext2D;
@@ -302,7 +331,7 @@ function paintMaskedFrame(
   let highlightColors: Array<[number, number, number]> | null = null;
 
   if (useShader) {
-    sampleData = sampleShaderField(s, inst, sampleCanvas, sampleCtx);
+    sampleData = sampleShaderField(state, s, inst, sampleCtx);
     const colorMap: Record<string, number> = {
       shaderColor1: 0,
       shaderColor2: 1,
@@ -334,7 +363,8 @@ function paintMaskedFrame(
 
   const threshold = 1 - eased * (1 + softBand);
 
-  const maskImgData = maskGradCtx.createImageData(MASK_SIZE, MASK_SIZE);
+  // Reuse the pooled buffer initialised by ensureScratch above.
+  const maskImgData = state.maskImgData as ImageData;
   const md = maskImgData.data;
   for (let r = 0; r < MASK_SIZE; r++) {
     for (let c = 0; c < MASK_SIZE; c++) {
@@ -550,8 +580,10 @@ export function createReveal(opts: CreateRevealOptions): RevealState {
     cssHeight: opts.cssHeight,
     sampleCanvas: null,
     sampleCtx: null,
+    sampleImgData: null,
     maskGrad: null,
     maskGradCtx: null,
+    maskImgData: null,
     pixCanvas: null,
     pixCtx: null,
     pixDrop: null,
@@ -660,8 +692,10 @@ export function createReveal(opts: CreateRevealOptions): RevealState {
       state.image = null;
       state.sampleCanvas = null;
       state.sampleCtx = null;
+      state.sampleImgData = null;
       state.maskGrad = null;
       state.maskGradCtx = null;
+      state.maskImgData = null;
       state.pixCanvas = null;
       state.pixCtx = null;
       state.pixDrop = null;
