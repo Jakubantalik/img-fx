@@ -15,7 +15,22 @@ export const DOTS_MECHANIC: Preset = {
       cardBg: '#0f0f0f',
       dotMode: 2,
       pixelConfig: {
-        cellSize: 0.5,
+        // `cellSize` here drives the REVEAL pixelation grid (the chunky
+        // pixel-mode-style dropout layer). The shader itself ignores
+        // `pixelConfig` for dot presets (it uses `dotConfig`), so this
+        // value is only ever seen during the reveal animation and the
+        // 0..1 documented range does not apply — we deliberately push
+        // past it to land on a finer grid.
+        //
+        // 1.0 → baseCount = 80 → 70 cells per dim on a 280px card →
+        // ~4 dest-px square cells. That is roughly half the linear size
+        // of the legacy 0.5 value (~7.5 px cells) — the actual visible
+        // 50% reduction the user asked for. Cell count grows from 37x37
+        // (~1.4k) to 70x70 (~4.9k); the per-frame alpha-update loop is a
+        // handful of typed-array ops per cell so total cost stays sub-
+        // millisecond, well below the 100 ms per-frame budget at the
+        // 10 fps reveal cap.
+        cellSize: 1.0,
         gap: 0.3,
         dotOpacity: 0.58,
         dotSize: 0.8,
@@ -70,7 +85,8 @@ export const DOTS_MECHANIC: Preset = {
       cardBg: '#f9f9f9',
       dotMode: 2,
       pixelConfig: {
-        cellSize: 0.5,
+        // See dark-mode comment above — reveal pixelation grid.
+        cellSize: 1.0,
         gap: 0.3,
         dotOpacity: 0.58,
         dotSize: 0.8,

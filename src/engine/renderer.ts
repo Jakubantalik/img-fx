@@ -35,15 +35,13 @@ import { parseCssColor, type PresetMode } from '../presets';
 import { FRAG_SRC, VERT_SRC } from './shaders';
 import type { RevealState } from './reveal';
 
-/** Frame interval (ms). 15 fps cap is plenty for the slow drifting shader
- *  fields used by the bundled presets (Plasma / Noise Flow / Chromium Flow /
- *  Nebula run at speed 0.3-0.9), and saves ~50% CPU vs. the original 30 fps
- *  while staying perceptually smooth (well above the 12 fps animation
- *  flicker threshold and close to cinematic 24 fps territory).
- *
- *  Mutable so power users / the demo page can flip back to a higher rate
- *  via `setFrameRate()` for side-by-side comparison. */
-let frameIntervalMs = 1000 / 15;
+/** Frame interval (ms). 10 fps cap is the sweet spot for the bundled presets
+ *  — they drift at `speed` 0.3-0.9 rad/s, which is a phase delta of just
+ *  0.03-0.09 rad per frame at 10 fps (well below the perceptual flicker
+ *  threshold for smoothly varying fields). Drops shader + reveal work by
+ *  ~33% vs. the previous 15 fps cap; for fast-moving custom presets the
+ *  consumer can opt back up via `setFrameRate(15)` or higher. */
+let frameIntervalMs = 1000 / 10;
 /** Maximum device-pixel-ratio applied to the GL canvas (image.html line 952).
  *  At 1.25 (vs the original 1.5) fragment work drops by ~31% per render
  *  with essentially no visible difference on the cell-quantised mosaic
@@ -607,7 +605,8 @@ export function setInstanceStrength(inst: Instance, strength: number): void {
  * instance sharing the renderer. Values are clamped to a sensible range so
  * a callsite can't accidentally starve the loop or burn CPU at >60.
  *
- * @example setFrameRate(15) // ~67ms per frame, lowest visually-OK rate
+ * @example setFrameRate(10) // default — best for slow-drift presets
+ * @example setFrameRate(15) // smoother for faster custom presets
  * @example setFrameRate(30) // restore the original cap
  */
 export function setFrameRate(fps: number): void {
