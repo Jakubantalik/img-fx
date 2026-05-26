@@ -451,41 +451,71 @@ html[data-theme='light'] .code-block code {
  * color on hover. Both <svg>s render permanently inside the button and
  * are crossfaded via opacity + scale + blur driven by `data-copied`
  * on the parent, mirroring the template's P5 icon-swap pattern. */
+/* Verbatim port of `Essencial/skill.html` `.card-copy` (lines
+ * 741-792). 36x36 pill that sits visible at rest — semi-opaque white
+ * over a darker tint in light mode, 8% white over the dark surface
+ * in dark mode — and brightens to the next-step background on hover
+ * and pressed states. The icon-color tokens (muted at rest → full
+ * on hover) match `--icon-color` / `--icon-color-muted` from the
+ * template's light + dark `:root` blocks.
+ *
+ * Light mode uses the same `linear-gradient(90deg, var → var)` over
+ * a `--copy-bg-tint` backing the template uses, so the pill keeps
+ * its slight grey-tinted look even when stacked on the demo's
+ * `#f7f7f7` code-block surface (the tint shows through the white
+ * pill's 10% transparency just enough to differentiate the chip
+ * from the card). Dark mode collapses both the backing and the
+ * gradient down to a single solid because there's no tint to show.
+ *
+ * Note on positioning: kept the demo's `position: absolute; top:2;
+ * right:2` corner anchor (template uses `bottom: 16px` because its
+ * cards are taller). The visual treatment matches the template;
+ * the layout slot is demo-specific. */
 .copy-btn {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 2px;
+  right: 2px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 0;
   border-radius: 24px;
   padding: 0;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.08);
   color: rgba(237, 237, 237, 0.6);
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 html[data-theme='light'] .copy-btn {
+  background-color: #bfc0cb;
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.9) 100%
+  );
   color: rgba(13, 13, 13, 0.6);
 }
 .copy-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.1);
   color: #ededed;
 }
 .copy-btn:active {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ededed;
 }
 html[data-theme='light'] .copy-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background-color: #bfc0cb;
+  background-image: linear-gradient(90deg, #f1f1f1 0%, #f1f1f1 100%);
   color: #0d0d0d;
 }
 html[data-theme='light'] .copy-btn:active {
-  background: rgba(0, 0, 0, 0.06);
+  background-color: #bfc0cb;
+  background-image: linear-gradient(90deg, #eae9e9 0%, #eae9e9 100%);
+  color: #0d0d0d;
 }
 .copy-btn:focus-visible {
   outline: 2px solid #ededed;
