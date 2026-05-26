@@ -47,6 +47,32 @@ let frameIntervalMs = 1000 / 10;
  *  with essentially no visible difference on the cell-quantised mosaic
  *  presets bundled with the library. Mutable via `setMaxDpr()`. */
 let maxDpr = 1.25;
+/** Maximum device-pixel-ratio applied to the *visible* 2D canvas (the one
+ *  the user actually sees) and, by extension, the reveal image drawn into
+ *  it. Decoupled from `maxDpr` because:
+ *
+ *  - GL fragment work scales with `maxDpr²` and is the dominant per-frame
+ *    cost — bumping it is expensive.
+ *  - The visible canvas only receives ONE hardware-accelerated `drawImage`
+ *    per frame (rect copy from the GL framebuffer) plus, briefly during
+ *    reveal, the photographic image draw. Both are cheap even at 2× DPR.
+ *
+ *  Capping the *visible* canvas higher fixes the iOS-Safari / iOS-Firefox
+ *  blur that 1.25× produced on `devicePixelRatio: 3` retina screens:
+ *  the GL framebuffer (still rendered at `maxDpr`=1.25) is upscaled into
+ *  the visible canvas with nearest-neighbour `drawImage`, so the cell
+ *  mosaic stays crisp at no extra GL cost, while the reveal image —
+ *  which `paintMaskedFrame` always draws with `imageSmoothingEnabled =
+ *  true` at full quality — lands at the device's native pixel grid.
+ *  2 is the standard "retina2x" cap; going to 3 on iPhone is below visual
+ *  acuity for this content and would just chew CPU on the per-frame
+ *  drawImage copy. */
+const MAX_CANVAS_DPR = 2;
+
+function resolveCanvasDpr(): number {
+  if (typeof window === 'undefined') return 1;
+  return Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR);
+}
 
 /** Instance handle returned by `createInstance`. Each <ImageGeneration> owns one. */
 export interface Instance {
@@ -56,8 +82,17 @@ export interface Instance {
   /** CSS-px size (synced from ResizeObserver). */
   cssWidth: number;
   cssHeight: number;
-  /** DPR cached at creation; refreshed on resize. */
+  /** GL render DPR cached at creation; refreshed on resize. Caps at
+   *  `maxDpr` (default 1.25) — this is the cheap-fragment-shader knob. */
   dpr: number;
+  /** Display DPR for the visible 2D canvas (and reveal image). Caps at
+   *  `MAX_CANVAS_DPR` (default 2). May exceed `dpr`: when it does, the
+   *  low-DPR GL framebuffer is upscaled into the visible canvas with
+   *  `imageSmoothingEnabled = false` so the cell mosaic stays crisp at
+   *  no extra GL cost, while the reveal image — drawn directly into
+   *  this canvas with smoothing enabled — gets the device's full pixel
+   *  density. Fixes blur on iOS Safari/Firefox where DPR=3. */
+  canvasDpr: number;
   /** Active preset mode block (dark or light).
    *
    * Typed as `EnginePresetMode` (the wider engine-internal shape)
@@ -409,18 +444,38 @@ function paintInstance(s: SharedRenderer, inst: Instance, nowMs: number): void {
 
   s.renderer.render(s.scene, s.camera);
 
-  // Resize the visible canvas to the instance's pixel size (this is cheap —
-  // it only triggers a reallocation when the instance itself resizes, not
-  // when other instances do).
-  if (inst.canvas.width !== iw || inst.canvas.height !== ih) {
-    inst.canvas.width = iw;
-    inst.canvas.height = ih;
+  // Resize the visible canvas to the instance's pixel size — at the
+  // *display* DPR cap (`canvasDpr`, default 2), not the GL DPR (`dpr`,
+  // default 1.25). Sizing this canvas higher than the GL framebuffer is
+  // what gives iOS Safari/Firefox a sharp reveal image: `paintMaskedFrame`
+  // draws the photograph directly into this canvas with
+  // `imageSmoothingEnabled = true`, so the image lands at the device's
+  // native pixel grid (DPR 3 on iPhone, DPR 2 on iPad) instead of getting
+  // CSS-upscaled from 1.25× by the browser.
+  //
+  // The reallocation cost is the same as before — the canvas only
+  // triggers a buffer alloc when the instance itself resizes — and the
+  // per-frame compositing cost adds one hardware-accelerated rect copy
+  // at (`dispW × dispH`) which is sub-ms on any GPU-backed 2D context.
+  const dispW = Math.max(1, Math.floor(inst.cssWidth * inst.canvasDpr));
+  const dispH = Math.max(1, Math.floor(inst.cssHeight * inst.canvasDpr));
+  if (inst.canvas.width !== dispW || inst.canvas.height !== dispH) {
+    inst.canvas.width = dispW;
+    inst.canvas.height = dispH;
   }
-  inst.ctx.clearRect(0, 0, iw, ih);
+  inst.ctx.clearRect(0, 0, dispW, dispH);
   // Source rect is the bottom-left iw×ih of the framebuffer. In image-space
   // (top-left origin) that lives at sy = glCanvas.height - ih.
   const sy = s.glCanvas.height - ih;
-  inst.ctx.drawImage(s.glCanvas, 0, sy, iw, ih, 0, 0, iw, ih);
+  // Disable smoothing for the GL → visible upscale: the shader output is a
+  // sharp cell mosaic and nearest-neighbour preserves block edges (bilinear
+  // would melt them into a mushy gradient — the exact iOS blur we're
+  // fixing for the reveal image, but inverted for the shader). The reveal
+  // pipeline (`paintMaskedFrame` and friends) explicitly re-enables
+  // smoothing before drawing the photographic image, so this setting only
+  // affects this single drawImage call.
+  inst.ctx.imageSmoothingEnabled = false;
+  inst.ctx.drawImage(s.glCanvas, 0, sy, iw, ih, 0, 0, dispW, dispH);
 
   // Reveal pipeline (defined in reveal.ts) — paints overlay image into its
   // own mask canvas; we just notify it that the shader frame just finished.
@@ -547,6 +602,7 @@ export function createInstance(opts: CreateInstanceOptions): Instance {
     cssWidth: opts.cssWidth,
     cssHeight: opts.cssHeight,
     dpr: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, maxDpr),
+    canvasDpr: resolveCanvasDpr(),
     // Public `PresetMode` widens to `EnginePresetMode` at the
     // boundary — see `Instance.preset` for the rationale.
     preset: opts.preset as EnginePresetMode,
@@ -580,6 +636,9 @@ export function updateInstanceSize(inst: Instance, cssWidth: number, cssHeight: 
   inst.cssHeight = cssHeight;
   if (typeof window !== 'undefined') {
     inst.dpr = Math.min(window.devicePixelRatio, maxDpr);
+    // Refresh visible-canvas DPR too — covers monitor swaps and OS
+    // zoom changes that move `devicePixelRatio` while the page is open.
+    inst.canvasDpr = resolveCanvasDpr();
   }
 }
 
