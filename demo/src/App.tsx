@@ -221,9 +221,29 @@ const PRESET_OPTIONS: Array<{ value: PlaygroundPreset; label: string }> = [
   { value: 'pixels-organic', label: 'Pixel Mechanic' }
 ];
 
+// Resolve the OS-level colour preference. Used to seed the initial
+// `theme` state and to keep the page in sync if the user flips their
+// system theme while the demo is open (e.g. macOS sunset auto-dark).
+// SSR-safe — falls back to 'dark' when `window` is unavailable, which
+// also matches the synchronous pre-React stamp in `index.html`.
+function getSystemTheme(): ImageGenerationTheme {
+  if (typeof window === 'undefined' || !window.matchMedia) return 'dark';
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
 export function App(): JSX.Element {
-  // Default to dark, but allow manual switching via the header toggle.
-  const [theme, setTheme] = useState<ImageGenerationTheme>('dark');
+  // Seed from the OS `prefers-color-scheme` preference. The inline
+  // script in `demo/index.html` already stamped `data-theme` before
+  // React booted (preventing a flash of the wrong palette), and this
+  // `useState` initialiser reads the same media query so React's
+  // model stays in sync with the DOM from the very first render.
+  const [theme, setTheme] = useState<ImageGenerationTheme>(getSystemTheme);
+  // Tracks whether the user has explicitly clicked the theme toggle
+  // this session. Once true, we stop following live OS-level changes
+  // so the user's manual choice isn't yanked out from under them when
+  // their system flips (e.g. macOS sunset auto-dark). Reloading the
+  // page resets this — system preference becomes authoritative again.
+  const userOverrodeThemeRef = useRef(false);
   const [preset, setPreset] = useState<PlaygroundPreset>('pixels-organic');
   const [strength, setStrength] = useState(100);
   // Playground starts paused so the page loads quietly; the Play/Pause toggle
@@ -237,7 +257,23 @@ export function App(): JSX.Element {
     setPlaygroundPaused((p) => !p);
   }, []);
   const handleToggleTheme = useCallback(() => {
+    userOverrodeThemeRef.current = true;
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  // Live-follow the OS theme until the user opts out via the toggle.
+  // Listening on `(prefers-color-scheme: light)` (rather than the more
+  // common dark query) keeps the polarity the same as `getSystemTheme`
+  // above so there's only one source of truth for the mapping.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(prefers-color-scheme: light)');
+    const onSystemThemeChange = (e: MediaQueryListEvent) => {
+      if (userOverrodeThemeRef.current) return;
+      setTheme(e.matches ? 'light' : 'dark');
+    };
+    mql.addEventListener('change', onSystemThemeChange);
+    return () => mql.removeEventListener('change', onSystemThemeChange);
   }, []);
   const handleToggleReveal = useCallback(() => {
     const handle = playgroundRef.current;
