@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ImageGeneration,
   type ImageGenerationCycleEvent,
@@ -180,12 +180,62 @@ function SunIcon({ className }: { className?: string }): JSX.Element {
 }
 
 
+/** Ports the "Copy code" / "Copied" pill tooltip from the Essencial skill.html
+ *  template (lines 836-988, 3889-3939). The tooltip's swap slot animates its
+ *  width between two labels, so the labels are measured once after mount and
+ *  exposed as `--tt-w-a` / `--tt-w-b` CSS custom properties. The icon swap
+ *  (copy ⇄ check) and the text swap reset in two stages so the icon flips
+ *  back to "copy" 200ms before the text crossfades back to "Copy code". */
 function CopyButton({ text, label }: { text: string; label: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
+  const [swapState, setSwapState] = useState<'copy' | 'copied'>('copy');
+  const swapRef = useRef<HTMLSpanElement | null>(null);
+  const iconTimerRef = useRef<number | undefined>(undefined);
+  const swapTimerRef = useRef<number | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    const swap = swapRef.current;
+    if (!swap) return;
+    const labels = swap.querySelectorAll<HTMLElement>('.tt-label');
+    const widths: number[] = [];
+    labels.forEach((lbl) => {
+      const prevPos = lbl.style.position;
+      const prevDisp = lbl.style.display;
+      lbl.style.position = 'static';
+      lbl.style.display = 'inline-block';
+      widths.push(lbl.getBoundingClientRect().width);
+      lbl.style.position = prevPos;
+      lbl.style.display = prevDisp;
+    });
+    if (widths.length >= 2) {
+      swap.style.setProperty('--tt-w-a', widths[0] + 'px');
+      swap.style.setProperty('--tt-w-b', widths[1] + 'px');
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(iconTimerRef.current);
+      window.clearTimeout(swapTimerRef.current);
+    };
+  }, []);
+
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      setSwapState('copied');
+      window.clearTimeout(iconTimerRef.current);
+      window.clearTimeout(swapTimerRef.current);
+      const isTouch =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(hover: none)').matches;
+      const dwell = isTouch ? 2000 : 1600;
+      iconTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        swapTimerRef.current = window.setTimeout(() => {
+          setSwapState('copy');
+        }, 200);
+      }, dwell);
     });
   }, [text]);
 
@@ -199,6 +249,15 @@ function CopyButton({ text, label }: { text: string; label: string }): JSX.Eleme
     >
       <CopyIcon />
       <CheckIcon />
+      <span className="copy-btn-tooltip" role="tooltip" aria-hidden="true">
+        <span className="tt-text">
+          <span className="tt-stem">Cop</span>
+          <span className="tt-swap" ref={swapRef} data-state={swapState}>
+            <span className="tt-label tt-a">y code</span>
+            <span className="tt-label tt-b">ied</span>
+          </span>
+        </span>
+      </span>
     </button>
   );
 }

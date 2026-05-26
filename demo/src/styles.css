@@ -412,11 +412,11 @@ html[data-theme='light'] .example-cell {
 .code-block {
   display: flex;
   align-items: center;
-  height: 40px;
+  gap: 10px;
+  min-height: 40px;
   background: #121212;
   border-radius: 10px;
-  padding: 2px 40px 2px 12px;
-  overflow: hidden;
+  padding: 4px 8px 4px 14px;
   position: relative;
 }
 html[data-theme='light'] .code-block {
@@ -426,7 +426,7 @@ html[data-theme='light'] .code-block {
 
 .code-block--multi {
   height: auto;
-  padding: 6px 40px 6px 12px;
+  padding: 6px 8px 6px 14px;
   align-items: flex-start;
 }
 
@@ -471,51 +471,58 @@ html[data-theme='light'] .code-block code {
  * right:2` corner anchor (template uses `bottom: 16px` because its
  * cards are taller). The visual treatment matches the template;
  * the layout slot is demo-specific. */
+/* Copy button — port of skill.html `.skill-code-row .card-copy`
+ * (lines 3127-3158). The button sits inside an already-tinted code
+ * row, so the template intentionally drops the resting fill and lets
+ * the row itself form the chip; on hover a faint wash appears, and
+ * on press it deepens slightly. Icon goes from the muted icon-color
+ * to the full icon-color in step with the wash. Resist the urge to
+ * port the bigger `.card-copy` resting fill (--copy-bg-tint /
+ * --copy-bg) — that variant is for buttons floating over an UNtinted
+ * surface (e.g. the demo card body), which is NOT our context here. */
 .copy-btn {
-  position: absolute;
-  top: 2px;
-  right: 2px;
+  position: relative;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  max-width: 32px;
+  max-height: 32px;
+  aspect-ratio: 1 / 1;
+  margin-right: -3px;
   border: 0;
-  border-radius: 24px;
+  border-radius: 6px;
   padding: 0;
-  background: rgba(255, 255, 255, 0.08);
+  line-height: 0;
+  background: transparent;
+  background-image: none;
   color: rgba(237, 237, 237, 0.6);
   cursor: pointer;
   transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }
 html[data-theme='light'] .copy-btn {
-  background-color: #bfc0cb;
-  background-image: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(255, 255, 255, 0.9) 100%
-  );
   color: rgba(13, 13, 13, 0.6);
 }
 .copy-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background-image: none;
+  background: rgba(255, 255, 255, 0.06);
   color: #ededed;
 }
 .copy-btn:active {
-  background: rgba(255, 255, 255, 0.1);
-  color: #ededed;
+  background-image: none;
+  background: rgba(255, 255, 255, 0.08);
 }
 html[data-theme='light'] .copy-btn:hover {
-  background-color: #bfc0cb;
-  background-image: linear-gradient(90deg, #f1f1f1 0%, #f1f1f1 100%);
+  background: rgba(0, 0, 0, 0.04);
   color: #0d0d0d;
 }
 html[data-theme='light'] .copy-btn:active {
-  background-color: #bfc0cb;
-  background-image: linear-gradient(90deg, #eae9e9 0%, #eae9e9 100%);
-  color: #0d0d0d;
+  background: rgba(0, 0, 0, 0.06);
 }
 .copy-btn:focus-visible {
   outline: 2px solid #ededed;
@@ -552,6 +559,7 @@ html[data-theme='light'] .copy-btn:focus-visible {
   opacity: 0;
   transform: translate(-50%, -50%) scale(0.25);
   filter: blur(4px);
+  color: currentColor;
 }
 .copy-btn[data-copied='true'] .icon-copy {
   opacity: 0;
@@ -562,6 +570,156 @@ html[data-theme='light'] .copy-btn:focus-visible {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
   filter: blur(0);
+}
+
+/* Copy button tooltip — verbatim port of skill.html `.card-copy-tooltip`
+ * (lines 836-988). The pill sits above the button, fades in on hover /
+ * focus / copied state, and animates its width between two labels
+ * ("Copy code" ⇄ "Copied"). The labels' widths are measured once in JS
+ * after mount and exposed as `--tt-w-a` / `--tt-w-b` on `.tt-swap`, so
+ * the width transition is exact. The shared "Cop" stem stays static
+ * while only the suffix ("y code" / "ied") cross-blurs on swap. */
+.copy-btn-tooltip {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(100% + 8px);
+  box-sizing: border-box;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 40px;
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 150ms;
+  background: #ffffff;
+  color: #17181c;
+  box-shadow:
+    0 2px 8px 0 rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.06),
+    0 1px 1px 0 rgba(0, 0, 0, 0.04);
+}
+html[data-theme='dark'] .copy-btn-tooltip {
+  background: #181818;
+  color: #e3e3e3;
+  box-shadow:
+    0 1px 16px 0 rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.04),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.06),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.06),
+    inset 0 0 0 1px rgba(196, 196, 196, 0.08);
+}
+
+@media (hover: hover) {
+  .copy-btn:hover .copy-btn-tooltip,
+  .copy-btn:focus-visible .copy-btn-tooltip,
+  .copy-btn[data-copied='true'] .copy-btn-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1) 50ms,
+      visibility 0s linear 50ms;
+  }
+  .copy-btn[data-copied='true'] .copy-btn-tooltip {
+    transition:
+      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear;
+  }
+}
+
+.copy-btn-tooltip .tt-text {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 16px;
+}
+
+.copy-btn-tooltip .tt-stem {
+  display: inline-block;
+  line-height: 16px;
+}
+
+.copy-btn-tooltip .tt-swap {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 16px;
+  width: var(--tt-w-a, auto);
+  transition: width 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.copy-btn-tooltip .tt-swap[data-state='copied'] {
+  width: var(--tt-w-b, auto);
+}
+
+.copy-btn-tooltip .tt-label {
+  white-space: pre;
+  transition:
+    opacity 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, filter;
+}
+
+.copy-btn-tooltip .tt-a {
+  display: inline-block;
+}
+
+.copy-btn-tooltip .tt-b {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.copy-btn-tooltip .tt-swap .tt-a {
+  opacity: 1;
+  filter: blur(0);
+}
+.copy-btn-tooltip .tt-swap .tt-b {
+  opacity: 0;
+  filter: blur(2px);
+}
+.copy-btn-tooltip .tt-swap[data-state='copied'] .tt-a {
+  opacity: 0;
+  filter: blur(2px);
+}
+.copy-btn-tooltip .tt-swap[data-state='copied'] .tt-b {
+  opacity: 1;
+  filter: blur(0);
+}
+
+@media (hover: none) {
+  .copy-btn[data-copied='true'] .copy-btn-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transition:
+      opacity 150ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear;
+  }
+  .copy-btn-tooltip .tt-swap {
+    width: var(--tt-w-b, auto);
+    transition: none;
+  }
+  .copy-btn-tooltip .tt-label {
+    transition: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .copy-btn-tooltip,
+  .copy-btn-tooltip .tt-swap,
+  .copy-btn-tooltip .tt-label {
+    transition: none !important;
+  }
 }
 
 /* Playground */
