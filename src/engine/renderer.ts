@@ -31,7 +31,7 @@
  * (peer dep) so the GLSL from image.html drops in unchanged.
  */
 import * as THREE from 'three';
-import { parseCssColor, type PresetMode } from '../presets';
+import { parseCssColor, type EnginePresetMode, type PresetMode } from '../presets';
 import { FRAG_SRC, VERT_SRC } from './shaders';
 import type { RevealState } from './reveal';
 
@@ -58,8 +58,13 @@ export interface Instance {
   cssHeight: number;
   /** DPR cached at creation; refreshed on resize. */
   dpr: number;
-  /** Active preset mode block (dark or light). */
-  preset: PresetMode;
+  /** Active preset mode block (dark or light).
+   *
+   * Typed as `EnginePresetMode` (the wider engine-internal shape)
+   * even though the public `setInstancePreset` accepts a narrower
+   * `PresetMode` — the cast is sound because the runtime objects
+   * exported via PRESETS always carry the dot-mode fields. */
+  preset: EnginePresetMode;
   /** Optional override for `preset.cardBg` (#rrggbb). When set, this color is
    *  used as the shader's `u_cardBg` and forwarded to the reveal helper so
    *  background-derived shader logic stays in sync with the host card color. */
@@ -542,7 +547,9 @@ export function createInstance(opts: CreateInstanceOptions): Instance {
     cssWidth: opts.cssWidth,
     cssHeight: opts.cssHeight,
     dpr: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, maxDpr),
-    preset: opts.preset,
+    // Public `PresetMode` widens to `EnginePresetMode` at the
+    // boundary — see `Instance.preset` for the rationale.
+    preset: opts.preset as EnginePresetMode,
     cardBgOverride: opts.cardBg ?? null,
     strength: opts.strength ?? 1,
     visible: true,
@@ -577,7 +584,8 @@ export function updateInstanceSize(inst: Instance, cssWidth: number, cssHeight: 
 }
 
 export function setInstancePreset(inst: Instance, preset: PresetMode): void {
-  inst.preset = preset;
+  // Same widening cast as `createInstance` — see `Instance.preset`.
+  inst.preset = preset as EnginePresetMode;
   inst.uniformsDirty = true;
 }
 

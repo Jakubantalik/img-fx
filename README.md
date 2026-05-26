@@ -43,7 +43,7 @@ export function Card() {
 
 | Prop                | Type                                                                  | Default     | Notes                                                                                            |
 | ------------------- | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| `preset`            | `'dots-mechanic' \| 'pixels-organic' \| 'pixels-mechanic'`            | `'pixels-organic'` | Selects the bundled effect preset (Type × Variant).                                              |
+| `preset`            | `'pixels-organic' \| 'pixels-mechanic'`                               | `'pixels-organic'` | Selects the bundled effect preset (Type × Variant).                                              |
 | `theme`             | `'auto' \| 'dark' \| 'light'`                                          | `'auto'`    | `auto` checks `<html data-theme>`, `.dark`/`.light` class, inline `color-scheme`, then `prefers-color-scheme`. Live-updates via MutationObserver. |
 | `strength`          | `number` (0..1)                                                       | `1`         | Final opacity multiplier. Doesn't change shader animation.                                       |
 | `cardBg`            | `string` (any CSS colour)                                             | preset      | Override the host card surface colour. Applied verbatim to the wrapper background (alpha preserved) AND parsed to opaque RGB for the shader's `u_cardBg` so colour-proximity logic stays in sync. Accepts hex, `rgb()`/`rgba()`, `hsl()`, named colours, etc. |

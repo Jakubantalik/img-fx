@@ -1,42 +1,32 @@
 /**
  * Bundled preset configurations for the img-fx effect.
  *
- * Direct ports of the three JSON files in `presets/`:
- *   • preset-dot-style-2.json     -> dots-mechanic  (Noise Flow)
+ * Direct ports of the two JSON files in `presets/`:
  *   • preset-pixels-style-3.json  -> pixels-organic  (Chromium Flow)
  *   • preset-pixels-style-4.json  -> pixels-mechanic (Nebula)
  *
  * Each preset ships a `dark` and `light` mode block; the resolved theme picks
  * the right one at runtime.
  *
- * Note: an older `dots-organic` (Plasma) variant was removed in 0.2.0 because
- * its slow, soft-glow look duplicated the on-page coverage already provided by
- * `dots-mechanic` and wasn't showcased anywhere in the demo. Consumers on
- * <0.2.0 who used it should switch to `dots-mechanic`.
+ * Note: older dot-based presets were removed from the bundled preset surface
+ * to keep the package aligned with the demo and the supported public API.
  */
 
-import { DOTS_MECHANIC } from './dots-mechanic';
 import { PIXELS_MECHANIC } from './pixels-mechanic';
 import { PIXELS_ORGANIC } from './pixels-organic';
 
-export type PresetName = 'dots-mechanic' | 'pixels-organic' | 'pixels-mechanic';
+export type PresetName = 'pixels-organic' | 'pixels-mechanic';
 export type PresetTheme = 'dark' | 'light';
 
-/** Per-mosaic-type render config (shader picks one based on `dotMode`). */
+/** Per-cell mosaic configuration for pixel-mode rendering. */
 export interface MosaicConfig {
   /** Cell-size 0..1; converted in shader to `floor(6 + cellSize*74)` cells. */
   cellSize: number;
   /** Inter-cell spacing 0..1. */
   gap: number;
-  /** Per-cell base opacity (only used in dot mode). */
-  dotOpacity: number;
-  /** Disc radius 0..1 (dot mode). */
-  dotSize: number;
-  /** Disc edge softness. */
-  dotSoftness: number;
   /** Highlight scale boost 0..1. */
   hlScale: number;
-  /** Background fill opacity (pixel mode). */
+  /** Background fill opacity. */
   fillOpacity: number;
   /** Edge fade band in CSS px. */
   edgeFade: number;
@@ -56,14 +46,10 @@ export interface RevealConfig {
   softness: number;
   /** Max CSS-px blur applied to the mask canvas during reveal. */
   blur: number;
-  /** Pixel-cell dissolve duration (sec) when in pixel mode. */
+  /** Pixel-cell dissolve duration (sec). */
   pixDuration: number;
   /** Easing for the pixel-cell dissolve. */
   pixEasing: EasingKey;
-  /** Dot-mode reveal duration (sec). */
-  dotDuration: number;
-  /** Easing for the dot-mode reveal. */
-  dotEasing: EasingKey;
 }
 
 export type EasingKey =
@@ -102,10 +88,9 @@ export interface PresetMode {
   colors: [string, string, string, string, string, string, string];
   alphas: [number, number, number, number, number, number, number];
   cardBg: string;
-  /** 0 = off (raw shader), 1 = pixels, 2 = dots. */
-  dotMode: 0 | 1 | 2;
+  /** 0 = off (raw shader), 1 = pixels. */
+  dotMode: 0 | 1;
   pixelConfig: MosaicConfig;
-  dotConfig: MosaicConfig;
   /** Drift angle (degrees). */
   direction: number;
   speed: number;
@@ -130,11 +115,74 @@ export interface Preset {
   modes: Record<PresetTheme, PresetMode>;
 }
 
-export const PRESETS: Record<PresetName, Preset> = {
-  'dots-mechanic': DOTS_MECHANIC,
+/* ============================================================ */
+/* Internal engine-only types                                   */
+/* ============================================================ */
+/* The dot renderer is still wired through the engine in case we
+ * ever ship a dot-mode preset again, but no bundled preset since
+ * 0.2.0 sets `dotMode: 2`, so the dot fields are not part of the
+ * public types. Engine code that needs full access (the unreachable
+ * `preset.dotMode === 2` branches in reveal.ts / renderer.ts) casts
+ * the public `PresetMode` up to `EnginePresetMode` at the boundary.
+ *
+ * Mark `@internal` so API Extractor / IDE autocomplete keep them
+ * out of consumer-facing surfaces. */
+
+/** @internal Full mosaic shape including disc-render fields. */
+export interface EngineMosaicConfig extends MosaicConfig {
+  /** Per-cell base opacity (dot mode only). */
+  dotOpacity: number;
+  /** Disc radius 0..1 (dot mode only). */
+  dotSize: number;
+  /** Disc edge softness (dot mode only). */
+  dotSoftness: number;
+}
+
+/** @internal Full reveal shape including dot-mode timing. */
+export interface EngineRevealConfig extends RevealConfig {
+  /** Dot-mode reveal duration (sec). */
+  dotDuration: number;
+  /** Easing for the dot-mode reveal. */
+  dotEasing: EasingKey;
+}
+
+/** @internal Full preset-mode shape used by the engine. */
+export interface EnginePresetMode extends Omit<PresetMode, 'dotMode' | 'pixelConfig' | 'revealConfig'> {
+  /** 0 = off (raw shader), 1 = pixels, 2 = dots. */
+  dotMode: 0 | 1 | 2;
+  pixelConfig: EngineMosaicConfig;
+  /** Disc mosaic config (only consulted when `dotMode === 2`). */
+  dotConfig: EngineMosaicConfig;
+  revealConfig: EngineRevealConfig;
+}
+
+/** @internal */
+export interface EnginePreset {
+  name: PresetName;
+  modes: Record<PresetTheme, EnginePresetMode>;
+}
+
+/* Runtime preset map. The underlying object literals (in
+ * `pixels-mechanic.ts` / `pixels-organic.ts`) are typed as
+ * `EnginePreset` so they can carry the dot-mode fields without TS
+ * errors, but the public `PRESETS` is downcast to the narrower
+ * `Preset` shape so consumers don't see them in autocomplete /
+ * type-info. The cast is sound: every bundled preset uses
+ * `dotMode: 1`, which is in both `0 | 1` and `0 | 1 | 2`. */
+const _PRESETS_INTERNAL: Record<PresetName, EnginePreset> = {
   'pixels-organic': PIXELS_ORGANIC,
   'pixels-mechanic': PIXELS_MECHANIC
 };
+
+export const PRESETS = _PRESETS_INTERNAL as unknown as Record<PresetName, Preset>;
+
+/** @internal Engine-only accessor that returns the full preset
+ * shape (including the dot-mode fields hidden from the public
+ * `PRESETS` map). Lets engine code keep its `preset.dotMode === 2`
+ * branches intact without per-call casts. */
+export function _getEnginePreset(name: PresetName): EnginePreset {
+  return _PRESETS_INTERNAL[name];
+}
 
 /**
  * `#rrggbb` -> normalized [r, g, b] in 0..1.
@@ -248,4 +296,4 @@ export function parseCssColor(input: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-export { DOTS_MECHANIC, PIXELS_ORGANIC, PIXELS_MECHANIC };
+export { PIXELS_ORGANIC, PIXELS_MECHANIC };

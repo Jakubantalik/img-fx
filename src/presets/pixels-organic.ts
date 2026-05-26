@@ -2,9 +2,9 @@
  * Direct port of `presets/preset-pixels-style-3.json`.
  * Pixel renderer + Chromium Flow effect (organic chrome ridges).
  */
-import type { Preset } from './index';
+import type { EnginePreset } from './index';
 
-export const PIXELS_ORGANIC: Preset = {
+export const PIXELS_ORGANIC: EnginePreset = {
   name: 'pixels-organic',
   modes: {
     dark: {

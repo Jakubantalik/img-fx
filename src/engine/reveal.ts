@@ -15,7 +15,7 @@
  * forced to 0 / 1 so the mask reads from the raw / pixel-rendered shader
  * colour field rather than the dot mosaic.
  */
-import { parseCssColor, type MaskShape, type PresetMode } from '../presets';
+import { parseCssColor, type EnginePresetMode, type MaskShape } from '../presets';
 import { ease } from './tween';
 import { effectiveCardBg, type Instance, type SharedRenderer } from './renderer';
 
@@ -169,11 +169,13 @@ interface RevealInternals {
   pixDropRevealStart: number;
 }
 
-function getMaskSize(p: PresetMode): number {
+function getMaskSize(p: EnginePresetMode): number {
   return p.dotMode === 2 ? DOT_MASK_SIZE : MASK_SIZE;
 }
 
-function getActiveRevealTiming(p: PresetMode): { duration: number; easingKey: PresetMode['revealConfig']['easing'] } {
+function getActiveRevealTiming(
+  p: EnginePresetMode
+): { duration: number; easingKey: EnginePresetMode['revealConfig']['easing'] } {
   // Mode-aware: dot uses dotDuration/dotEasing, everything else uses duration/easing.
   // Mirrors image.html `getActiveRevealTiming` (line 2353).
   const r = p.revealConfig;
@@ -485,7 +487,7 @@ function paintMaskedFrame(
       // already validated at ~4.4% CPU in the prior perf pass.
       // Cell size is sourced from `pixelConfig.cellSize` (NOT `dotConfig`)
       // so it matches the pixel-mode pipeline byte-for-byte and produces
-      // visibly chunky blocks. dots-mechanic's `pixelConfig` is otherwise
+      // visibly chunky blocks. dot-mode presets' `pixelConfig` is otherwise
       // unused by the shader (which switches to `dotConfig` when
       // `dotMode === 2` — see `renderer.ts` mosaic switch), so the preset
       // is free to tune this field purely for the reveal look.
@@ -518,7 +520,7 @@ function paintMaskedFrame(
 
 /** Paints the pixel-mode-style "downsampled image with per-cell random
  *  drop-out" effect at an arbitrary cell-size scale, then leaves the
- *  caller to compose any additional masks on top. Used by the dots-mechanic
+ *  caller to compose any additional masks on top. Used by dot-mode
  *  reveal so the gradual pixel-to-smooth transition matches the pixel
  *  presets — but at the dot grid's denser cell count, and with the shader
  *  mask applied AFTER this function returns to gate visible areas.
@@ -537,7 +539,7 @@ function paintPixelatedDropLayer(
   cellSize: number,
   elapsed: number,
   pixDuration: number,
-  pixEasing: PresetMode['revealConfig']['pixEasing'],
+  pixEasing: EnginePresetMode['revealConfig']['pixEasing'],
   inst: Instance,
   targetW: number,
   targetH: number
@@ -650,7 +652,7 @@ function paintPixelMasked(
   sy: number,
   sw: number,
   sh: number,
-  preset: PresetMode,
+  preset: EnginePresetMode,
   elapsed: number,
   targetW: number,
   targetH: number,

@@ -2,9 +2,9 @@
  * Direct port of `presets/preset-pixels-style-4.json`.
  * Pixel renderer + Nebula effect (mechanical / structured pixel mosaic).
  */
-import type { Preset } from './index';
+import type { EnginePreset } from './index';
 
-export const PIXELS_MECHANIC: Preset = {
+export const PIXELS_MECHANIC: EnginePreset = {
   name: 'pixels-mechanic',
   modes: {
     dark: {

@@ -72,7 +72,6 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
   /**
    * Selects which bundled preset to render.
    *
-   * - `dots-mechanic`  - Noise Flow rendered as structured dots.
    * - `pixels-organic` - Chromium Flow rendered as a pixel mosaic.
    * - `pixels-mechanic`- Nebula rendered as a pixel mosaic.
    *
