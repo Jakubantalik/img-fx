@@ -23,8 +23,9 @@ body {
 
 html[data-theme='light'],
 html[data-theme='light'] body {
-  background-color: #f5f5f5;
-  color: #1a1a1a;
+  background-color: #fdfdfd;
+  color: #17181c;
+  color-scheme: light;
 }
 
 body {
@@ -68,53 +69,140 @@ body {
   padding: 0 24px 64px;
 }
 
-/* Top bar */
+/* Top bar — ports skill.html `.top-bar` (lines 453-461): 8px gap
+ * between the chip-style action buttons, anchored to the top-right
+ * of the page. We use `right: 0` instead of the template's `right:
+ * 24px` because the parent `.header` already lives inside `.app`'s
+ * 24px horizontal padding, so the buttons end up the same 24px in
+ * from the viewport edge either way. */
 .top-bar-links {
   position: absolute;
   top: 16px;
   right: 0;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
+  z-index: 10;
 }
 
+/* Port of skill.html .theme-icon-stack + .theme-icon (lines 508-552
+ * + --p5-* tokens on line 241-244). Both icons live in the DOM
+ * permanently, stacked on top of each other inside a 16x16 wrapper,
+ * and the swap is driven by a single `data-active` attribute on the
+ * stack — both transitions kick off in the same frame so the icons
+ * crossfade in place via opacity / scale / blur (the P5 icon-swap
+ * pattern). Because our icons are inline <svg> with `currentColor`
+ * rather than <img>, we skip the template's brightness/invert trick
+ * and let the icon color flow from .icon-btn svg → muted at rest,
+ * full on hover. */
+.theme-icon-stack {
+  position: relative;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+}
+
+/* Specificity (0,2,0) beats `.icon-btn svg` (0,1,1) so the absolute
+ * positioning + transition stack win for theme icons specifically. */
+.icon-btn .theme-icon {
+  position: absolute;
+  inset: 0;
+  width: 16px;
+  height: 16px;
+  display: block;
+  transform-origin: center;
+  pointer-events: none;
+  user-select: none;
+  transition:
+    opacity 200ms ease-in-out,
+    transform 200ms ease-in-out,
+    filter 200ms ease-in-out,
+    color 0.15s ease;
+  /* Default = inactive (hidden) state, matches P5 morph-out. */
+  opacity: 0;
+  transform: scale(0.25);
+  filter: blur(2px);
+}
+
+/* Active icon = visible at rest, sharp and full size. */
+.theme-icon-stack[data-active='moon'] .theme-icon-moon,
+.theme-icon-stack[data-active='sun'] .theme-icon-sun {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+/* Top-bar chip — direct port of skill.html `.icon-btn`
+ * (transitions.dev/skill.html lines 463-499). Tokens used:
+ *   light:  --chip-bg #f4f4f4 / hover #f1f1f1 / pressed #eae9e9
+ *           --icon-color #0d0d0d / --icon-color-muted rgba(13,13,13,0.6)
+ *   dark:   --chip-bg rgba(255,255,255,0.07) / hover .10 / pressed .08
+ *           --icon-color #ededed / --icon-color-muted rgba(237,237,237,0.6)
+ * SVGs sit at the muted color at rest and transition to the full icon
+ * color on hover (color, not opacity, so it tracks the template feel).
+ * `.icon-x` is 16x17 because the X glyph is taller-than-wide in its
+ * artwork bounds — same exception as skill.html. */
 .icon-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: none;
+  border: 0;
   border-radius: 50px;
   background: rgba(255, 255, 255, 0.07);
-  color: inherit;
+  color: #ededed;
   cursor: pointer;
   text-decoration: none;
-  transition: background-color 0.2s ease;
+  padding: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
   -webkit-tap-highlight-color: transparent;
-}
-html[data-theme='light'] .icon-btn {
-  background: rgba(0, 0, 0, 0.06);
 }
 .icon-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-html[data-theme='light'] .icon-btn:hover {
-  background: rgba(0, 0, 0, 0.1);
+.icon-btn:active {
+  background: rgba(255, 255, 255, 0.08);
 }
 .icon-btn:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline: 2px solid #ededed;
   outline-offset: 2px;
 }
 .icon-btn svg {
+  width: 16px;
+  height: 16px;
   display: block;
   flex-shrink: 0;
   fill: currentColor;
-  opacity: 0.6;
-  transition: opacity 0.2s ease;
+  color: rgba(237, 237, 237, 0.6);
+  transition: color 0.15s ease;
+}
+.icon-btn svg.icon-x {
+  width: 16px;
+  height: 17px;
 }
 .icon-btn:hover svg {
-  opacity: 1;
+  color: #ededed;
+}
+
+html[data-theme='light'] .icon-btn {
+  background: #f4f4f4;
+  color: #0d0d0d;
+}
+html[data-theme='light'] .icon-btn:hover {
+  background: #f1f1f1;
+}
+html[data-theme='light'] .icon-btn:active {
+  background: #eae9e9;
+}
+html[data-theme='light'] .icon-btn:focus-visible {
+  outline-color: #0d0d0d;
+}
+html[data-theme='light'] .icon-btn svg {
+  color: rgba(13, 13, 13, 0.6);
+}
+html[data-theme='light'] .icon-btn:hover svg {
+  color: #0d0d0d;
 }
 
 /* Header */
@@ -130,46 +218,90 @@ html[data-theme='light'] .icon-btn:hover {
   padding-bottom: 53px;
 }
 
-/* Header icon — mirrors metal-fx/demo/components/Header.tsx:
- * source asset is 414×276 (2× for retina), displayed at 207×138 CSS px.
- * Negative top margin pulls it up so it visually overlaps above the header
- * box and the title/subtitle below sit on the header's bottom edge.
- * Hover transition matches metal-fx: 500ms cubic-bezier filter+transform
- * (hue-rotate + brightness lift, slight rotate + scale). */
+/* Header icon — source asset is 414×276 (2× for retina), displayed at
+ * 207×138 CSS px. Negative top margin pulls it up so it visually overlaps
+ * above the header box and the title/subtitle below sit on the header's
+ * bottom edge.
+ *
+ * The wrapper is a fixed 207×138 box that hosts BOTH theme variants as
+ * absolutely-positioned children. Both <img>s decode at page load and
+ * CSS picks which one is `display: block` based on the html[data-theme]
+ * attribute (port of skill.html .header-icon-img--light/--dark, lines
+ * 607-615). Without this, a single <img> with a theme-conditional `src`
+ * would drop the old asset and re-decode the new one on every toggle —
+ * the dark→light flash the user reported.
+ *
+ * Hover treatment is intentionally minimal: a single 500ms rotate, no
+ * scale and no filter (no hue shift, no brightness lift, no opacity
+ * change). The light/dark variants already carry their own colour, so
+ * adding a hue-rotate would tint one of them away from the design. */
 .header-icon {
   position: relative;
+  z-index: 0;
+  width: 207px;
+  height: 138px;
   margin-top: -190px;
   margin-bottom: -20px;
   line-height: 0;
   cursor: pointer;
 }
 
-.header-icon img {
-  display: block;
+.header-icon-img {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 207px;
   height: 138px;
+  display: block;
+  user-select: none;
+  transform-origin: center;
   transition:
-    filter 500ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: filter, transform;
+    transform 500ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 300ms ease;
+  will-change: transform, opacity;
 }
 
-.header-icon:hover img {
-  filter: hue-rotate(45deg) brightness(1.1);
-  transform: rotate(8deg) scale(1.06);
+.header-icon:hover .header-icon-img {
+  transform: rotate(8deg);
+}
+
+/* Cross-fade the variant matching the active theme via opacity rather
+ * than `display: none` / `display: block`. The previous display-toggle
+ * caused a one-frame flash on theme switch: even with both assets
+ * cached, the browser had to re-layout the newly-displayed <img> and
+ * (on some browsers) only decoded pixels for a never-displayed image
+ * on first paint. Keeping both <img>s permanently rendered makes the
+ * swap a pure compositor op — no layout, no decode, no flash.
+ *
+ * The 300ms timing matches the body background-color/color transition
+ * (line 21) so the whole theme switch reads as one synchronized fade.
+ *
+ * `:not([data-theme='light'])` covers both the explicit `data-theme=
+ * "dark"` and the very short window before React's first effect runs
+ * and sets the attribute — so the dark asset shows up immediately on
+ * load and we never paint a both-visible state. */
+html:not([data-theme='light']) .header-icon-img--dark,
+html[data-theme='light'] .header-icon-img--light {
+  opacity: 1;
+}
+
+html[data-theme='light'] .header-icon-img--dark,
+html:not([data-theme='light']) .header-icon-img--light {
+  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .header-icon img {
+  .header-icon-img {
     transition: none;
   }
-  .header-icon:hover img {
-    filter: none;
+  .header-icon:hover .header-icon-img {
     transform: none;
   }
 }
 
 .title {
+  position: relative;
+  z-index: 1;
   font-size: 22px;
   font-weight: 500;
   line-height: 30px;
@@ -177,6 +309,8 @@ html[data-theme='light'] .icon-btn:hover {
 }
 
 .subtitle-sm {
+  position: relative;
+  z-index: 1;
   font-size: 14px;
   font-weight: 400;
   line-height: 21px;
@@ -184,8 +318,8 @@ html[data-theme='light'] .icon-btn:hover {
   opacity: 0.5;
 }
 html[data-theme='light'] .subtitle-sm {
-  color: #4e4e4e;
-  opacity: 0.7;
+  color: #767676;
+  opacity: 1;
 }
 
 /* UI Examples */
@@ -209,7 +343,7 @@ html[data-theme='light'] .subtitle-sm {
   overflow: hidden;
 }
 html[data-theme='light'] .example-row-full {
-  background: rgba(0, 0, 0, 0.04);
+  background: #f7f7f7;
 }
 
 .example-row-split {
@@ -230,28 +364,28 @@ html[data-theme='light'] .example-row-full {
   overflow: hidden;
 }
 html[data-theme='light'] .example-cell {
-  background: rgba(0, 0, 0, 0.04);
+  background: #f7f7f7;
 }
 
 /* Hero cards (these are the host children that ImageGeneration wraps) */
 .hero-card {
   width: 280px;
   height: 280px;
-  border-radius: 24px;
+  border-radius: 16px;
   overflow: hidden;
 }
 .hero-card-wide {
   width: 100%;
   max-width: 320px;
   height: 280px;
-  border-radius: 24px;
+  border-radius: 16px;
   overflow: hidden;
 }
 .hero-card-tall {
   width: 100%;
   max-width: 220px;
   height: 280px;
-  border-radius: 24px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -286,8 +420,8 @@ html[data-theme='light'] .example-cell {
   position: relative;
 }
 html[data-theme='light'] .code-block {
-  background: #ffffff;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.07);
+  background: #f7f7f7;
+  box-shadow: none;
 }
 
 .code-block--multi {
@@ -307,37 +441,97 @@ html[data-theme='light'] .code-block {
   flex: 1;
 }
 html[data-theme='light'] .code-block code {
-  color: #1a1a1a;
+  color: #3c3c3c;
 }
 
+/* Copy button — port of skill.html `.skill-code-row .card-copy`
+ * (lines 3127-3158). 32x32 ghost button sitting at the top-right of
+ * the code block, going from transparent → tinted on hover. The icon
+ * sits at the muted icon color at rest and brightens to the full icon
+ * color on hover. Both <svg>s render permanently inside the button and
+ * are crossfaded via opacity + scale + blur driven by `data-copied`
+ * on the parent, mirroring the template's P5 icon-swap pattern. */
 .copy-btn {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 4px;
+  right: 4px;
   flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 10px;
-  background: transparent;
-  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 24px;
   padding: 0;
-  color: inherit;
-  transition: background-color 0.15s ease;
+  background: transparent;
+  color: rgba(237, 237, 237, 0.6);
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+html[data-theme='light'] .copy-btn {
+  color: rgba(13, 13, 13, 0.6);
 }
 .copy-btn:hover {
   background: rgba(255, 255, 255, 0.06);
+  color: #ededed;
+}
+.copy-btn:active {
+  background: rgba(255, 255, 255, 0.08);
 }
 html[data-theme='light'] .copy-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #0d0d0d;
+}
+html[data-theme='light'] .copy-btn:active {
   background: rgba(0, 0, 0, 0.06);
 }
+.copy-btn:focus-visible {
+  outline: 2px solid #ededed;
+  outline-offset: 2px;
+}
+html[data-theme='light'] .copy-btn:focus-visible {
+  outline-color: #0d0d0d;
+}
+
+/* Both icons live in the DOM permanently. They share the same
+ * absolute center anchor so the blur/scale crossfade happens in place
+ * — no per-click image decode, no asymmetric enter/exit pacing. */
 .copy-btn svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 16px;
   height: 16px;
-  opacity: 0.5;
+  display: block;
+  transform-origin: center;
+  will-change: opacity, transform, filter;
+  transition:
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.copy-btn .icon-copy {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  filter: blur(0);
+}
+.copy-btn .icon-check {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.25);
+  filter: blur(4px);
+}
+.copy-btn[data-copied='true'] .icon-copy {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.25);
+  filter: blur(4px);
+}
+.copy-btn[data-copied='true'] .icon-check {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+  filter: blur(0);
 }
 
 /* Playground */
@@ -368,7 +562,7 @@ html[data-theme='light'] .copy-btn:hover {
   padding: 16px;
 }
 html[data-theme='light'] .playground-controls {
-  background: #ebebeb;
+  background: #f7f7f7;
 }
 
 .control-group {
@@ -385,7 +579,7 @@ html[data-theme='light'] .playground-controls {
   color: rgba(251, 251, 251, 0.6);
 }
 html[data-theme='light'] .control-label {
-  color: rgba(7, 7, 7, 0.6);
+  color: #767676;
 }
 
 .control-options {
@@ -414,16 +608,16 @@ html[data-theme='light'] .control-label {
   -webkit-tap-highlight-color: transparent;
 }
 html[data-theme='light'] .tab-btn {
-  background: rgba(0, 0, 0, 0.04);
-  color: rgba(7, 7, 7, 0.55);
+  background: #ebebeb;
+  color: #17181c;
 }
 .tab-btn:hover {
   background: rgba(255, 255, 255, 0.06);
   color: rgba(251, 251, 251, 0.7);
 }
 html[data-theme='light'] .tab-btn:hover {
-  background: rgba(0, 0, 0, 0.07);
-  color: rgba(7, 7, 7, 0.75);
+  background: #e2e2e2;
+  color: #17181c;
 }
 .tab-btn[data-active='true'] {
   background: rgba(255, 255, 255, 0.07);
@@ -432,19 +626,27 @@ html[data-theme='light'] .tab-btn:hover {
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.02),
     inset 0 0.5px 0 0 rgba(255, 255, 255, 0.06);
 }
+/* Light-mode active tab — Figma node 485:428. The pill reads as a raised
+ * white chip on the tinted panel: one soft drop shadow for elevation, a
+ * 0.5px hairline border, and a 0.5px bottom edge that hints at a baked-in
+ * highlight on the lower lip. Figma's spec includes a 4th `inset 0 0 0
+ * -0.5px rgba(196,196,196,0.1)` layer, but with zero offset and zero
+ * blur a negative spread paints nothing, so it's intentionally dropped
+ * here as dead pixels. */
 html[data-theme='light'] .tab-btn[data-active='true'] {
-  background: rgba(0, 0, 0, 0.06);
-  color: #1a1a1a;
+  background: #ffffff;
+  color: #17181c;
   box-shadow:
-    inset 0 0 0 0.5px rgba(0, 0, 0, 0.02),
-    inset 0 0.5px 0 0 rgba(0, 0, 0, 0.06);
+    0 1px 3px 0 rgba(0, 0, 0, 0.04),
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    inset 0 -0.5px 0 0 rgba(0, 0, 0, 0.1);
 }
 .tab-btn:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.5);
   outline-offset: 2px;
 }
 html[data-theme='light'] .tab-btn:focus-visible {
-  outline-color: rgba(0, 0, 0, 0.5);
+  outline-color: #17181c;
 }
 
 .control-group--strength {
@@ -472,13 +674,11 @@ html[data-theme='light'] .tab-btn:focus-visible {
   cursor: grabbing;
 }
 html[data-theme='light'] .strength-track {
-  background: rgba(0, 0, 0, 0.04);
-  box-shadow:
-    inset 0 0 0 0.5px rgba(0, 0, 0, 0.02),
-    inset 0 0.5px 0 0 rgba(0, 0, 0, 0.06);
+  background: #ebebeb;
+  box-shadow: none;
 }
 html[data-theme='light'] .strength-track:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: #e2e2e2;
 }
 
 .strength-fill {
@@ -494,11 +694,17 @@ html[data-theme='light'] .strength-track:hover {
   transition: width 0.08s ease-out;
   pointer-events: none;
 }
+/* Light-mode fill shares the active-tab "raised white pill" treatment
+ * exactly (see `.tab-btn[data-active='true']` rules above, Figma node
+ * 485:428). Same drop shadow + 0.5px hairline border + 0.5px bottom
+ * edge so the filled portion of the slider reads as the same family
+ * of surface as the active tab button next to it. */
 html[data-theme='light'] .strength-fill {
-  background: rgba(0, 0, 0, 0.07);
+  background: #ffffff;
   box-shadow:
-    inset 0 0 0 0.5px rgba(0, 0, 0, 0.02),
-    inset 0 0.5px 0 0 rgba(0, 0, 0, 0.06);
+    0 1px 3px 0 rgba(0, 0, 0, 0.04),
+    inset 0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    inset 0 -0.5px 0 0 rgba(0, 0, 0, 0.1);
 }
 
 .strength-value {
@@ -517,7 +723,7 @@ html[data-theme='light'] .strength-fill {
   z-index: 1;
 }
 html[data-theme='light'] .strength-value {
-  color: rgba(7, 7, 7, 0.6);
+  color: #17181c;
 }
 
 .strength-input {
@@ -533,6 +739,32 @@ html[data-theme='light'] .strength-value {
   cursor: grab;
   opacity: 0;
   z-index: 2;
+  /* Kill the browser-native focus outline; some Chromium builds draw
+   * the range-input focus ring as a layer that ignores `opacity: 0` on
+   * the input, so the bright blue rectangle leaks across the visible
+   * track. Keyboard a11y signal is preserved on the parent via
+   * `.strength-track:focus-within` below using the same token palette
+   * as `.tab-btn:focus-visible` / `.icon-btn:focus-visible`. */
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.strength-input::-moz-focus-outer {
+  border: 0;
+}
+/* Focus indicator on the track, but only when the inner <input> took
+ * focus via keyboard (`:focus-visible`) — not mouse click. The previous
+ * `:focus-within` rule fired on *any* focus including click, which
+ * painted a visible ring around the slider every time the user
+ * dragged it. `:has(:focus-visible)` keeps the keyboard-a11y signal
+ * (Tab to the slider still shows the ring) while making click-and-drag
+ * silent, matching the no-ring-on-click pattern used by
+ * `.tab-btn:focus-visible` and `.icon-btn:focus-visible`. */
+.strength-track:has(.strength-input:focus-visible) {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+html[data-theme='light'] .strength-track:has(.strength-input:focus-visible) {
+  outline-color: rgba(0, 0, 0, 0.4);
 }
 
 .playground-preview {
@@ -548,13 +780,13 @@ html[data-theme='light'] .strength-value {
   padding: 48px;
 }
 html[data-theme='light'] .playground-preview {
-  background: rgba(0, 0, 0, 0.04);
+  background: #f7f7f7;
 }
 
 .playground-card {
   width: 280px;
   height: 280px;
-  border-radius: 24px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -616,15 +848,15 @@ html[data-theme='light'] .playground-preview {
   white-space: nowrap;
 }
 html[data-theme='light'] .playground-toggle {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(7, 7, 7, 0.7);
+  background: #ebebeb;
+  color: #17181c;
 }
 html[data-theme='light'] .playground-toggle:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #1a1a1a;
+  background: #e2e2e2;
+  color: #17181c;
 }
 html[data-theme='light'] .playground-toggle:focus-visible {
-  outline-color: rgba(0, 0, 0, 0.5);
+  outline-color: #17181c;
 }
 
 /* Disabled state — used by the Reveal/Hide button while the playground is
@@ -651,8 +883,8 @@ html[data-theme='light'] .playground-toggle:focus-visible {
 }
 html[data-theme='light'] .playground-toggle:disabled:hover,
 html[data-theme='light'] .playground-toggle[aria-disabled='true']:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: rgba(7, 7, 7, 0.7);
+  background: #ebebeb;
+  color: #17181c;
 }
 
 /* Footer */
@@ -667,7 +899,7 @@ html[data-theme='light'] .playground-toggle[aria-disabled='true']:hover {
   color: rgba(251, 251, 251, 0.4);
 }
 html[data-theme='light'] .footer-muted {
-  color: rgba(0, 0, 0, 0.45);
+  color: #767676;
 }
 
 .footer-name {
@@ -675,13 +907,13 @@ html[data-theme='light'] .footer-muted {
   text-decoration: none;
 }
 html[data-theme='light'] .footer-name {
-  color: rgba(0, 0, 0, 0.7);
+  color: #17181c;
 }
 .footer-name:hover {
   color: rgba(251, 251, 251, 0.9);
 }
 html[data-theme='light'] .footer-name:hover {
-  color: rgba(0, 0, 0, 0.9);
+  color: #000000;
 }
 
 /* Mobile */

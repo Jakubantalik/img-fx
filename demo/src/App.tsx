@@ -39,12 +39,17 @@ const IMAGE_POOL = [
   '/images/photo-1773236759289-251d9687b6e3.avif'
 ];
 
+/** Copy + check glyphs — paths ported from `transitions.dev/skill.html`
+ *  (lines 3461-3467). Both icons render permanently inside `.copy-btn`;
+ *  the swap is driven by toggling `data-copied` on the parent button so
+ *  CSS can crossfade them with the same opacity / scale / blur curves
+ *  the template uses. The `icon-copy` / `icon-check` class names mirror
+ *  the template so the CSS port stays 1:1. */
 function CopyIcon(): JSX.Element {
   return (
     <svg
+      className="icon-copy"
       aria-hidden="true"
-      width="16"
-      height="16"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -61,9 +66,8 @@ function CopyIcon(): JSX.Element {
 function CheckIcon(): JSX.Element {
   return (
     <svg
+      className="icon-check"
       aria-hidden="true"
-      width="16"
-      height="16"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -84,11 +88,26 @@ function GitHubIcon(): JSX.Element {
   );
 }
 
-/** X (formerly Twitter) glyph — same path as `metal-fx/demo/components/icons.tsx`. */
+/** X (formerly Twitter) glyph — outlined variant ported verbatim from the
+ *  `Essencial/skill.html` template (line ~3263) so the chip matches the
+ *  marketing-site reference. The path has two subpaths with opposite
+ *  winding so the default nonzero fill-rule carves out the interior,
+ *  giving the hollow/hairline X look. The `icon-x` className is reused
+ *  from the template so any future `.icon-btn svg.icon-x` rule applies. */
 function XIcon(): JSX.Element {
   return (
-    <svg aria-hidden="true" width="15" height="16" viewBox="0 0 1200 1227">
-      <path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" />
+    <svg
+      className="icon-x"
+      aria-hidden="true"
+      width="16"
+      height="17"
+      viewBox="0 0 16 17"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fill="currentColor"
+        d="M12.4041 1.39726H14.6953L9.69087 7.2591L15.5781 15.2368H10.9696L7.35741 10.3996L3.22921 15.2368H0.934687L6.28641 8.96575L0.642598 1.39726H5.36795L8.62962 5.81859L12.4041 1.39726ZM11.5992 13.8329H12.8682L4.67667 2.72798H3.31359L11.5992 13.8329Z"
+      />
     </svg>
   );
 }
@@ -110,6 +129,56 @@ function PauseIcon(): JSX.Element {
   );
 }
 
+/** Moon / Sun glyphs — paths lifted verbatim from
+ *  `transitions.dev/assets/theme-moon-01.svg` and `theme-sun.svg`
+ *  (the same assets the template renders via <img>). Inlined as React
+ *  components with `fill="currentColor"` so they inherit the parent
+ *  `.icon-btn svg` color tokens (muted at rest → full on hover) and
+ *  avoid the `brightness(0) invert(1)` filter trickery the template
+ *  needs because its <img> tags can't accept a CSS color. */
+function MoonIcon({ className }: { className?: string }): JSX.Element {
+  return (
+    <svg
+      className={className}
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fill="currentColor"
+        d="M6.04458 1.60806C6.1589 1.35528 6.10472 1.05812 5.90855 0.861947C5.71237 0.665775 5.41522 0.611597 5.16244 0.725914C2.51258 1.92428 0.666626 4.59176 0.666626 7.69181C0.666626 11.9121 4.08786 15.3334 8.30817 15.3334C11.4082 15.3334 14.0757 13.4874 15.2741 10.8375C15.3884 10.5848 15.3342 10.2876 15.138 10.0914C14.9419 9.89526 14.6447 9.84108 14.3919 9.9554C13.6009 10.3131 12.7225 10.5126 11.7956 10.5126C8.31168 10.5126 5.4874 7.6883 5.4874 4.20438C5.4874 3.27752 5.68686 2.39905 6.04458 1.60806Z"
+      />
+    </svg>
+  );
+}
+
+function SunIcon({ className }: { className?: string }): JSX.Element {
+  return (
+    <svg
+      className={className}
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path fill="currentColor" d="M8.66663 1.33333C8.66663 0.965143 8.36815 0.666666 7.99996 0.666666C7.63177 0.666666 7.33329 0.965143 7.33329 1.33333V2.66667C7.33329 3.03486 7.63177 3.33333 7.99996 3.33333C8.36815 3.33333 8.66663 3.03486 8.66663 2.66667V1.33333Z" />
+      <path fill="currentColor" d="M8.66663 13.3333C8.66663 12.9651 8.36815 12.6667 7.99996 12.6667C7.63177 12.6667 7.33329 12.9651 7.33329 13.3333V14.6667C7.33329 15.0349 7.63177 15.3333 7.99996 15.3333C8.36815 15.3333 8.66663 15.0349 8.66663 14.6667V13.3333Z" />
+      <path fill="currentColor" d="M0.666626 8C0.666626 7.63181 0.965103 7.33333 1.33329 7.33333H2.66663C3.03482 7.33333 3.33329 7.63181 3.33329 8C3.33329 8.36819 3.03482 8.66667 2.66663 8.66667H1.33329C0.965103 8.66667 0.666626 8.36819 0.666626 8Z" />
+      <path fill="currentColor" d="M3.73797 2.7952C3.47762 2.53485 3.05551 2.53485 2.79516 2.7952C2.53481 3.05555 2.53481 3.47766 2.79516 3.73801L3.73797 4.68081C3.99831 4.94116 4.42042 4.94116 4.68077 4.68081C4.94112 4.42046 4.94112 3.99836 4.68077 3.73801L3.73797 2.7952Z" />
+      <path fill="currentColor" d="M13.2048 2.7952C13.4651 3.05555 13.4651 3.47766 13.2048 3.73801L12.262 4.68081C12.0016 4.94116 11.5795 4.94116 11.3192 4.68081C11.0588 4.42046 11.0588 3.99836 11.3192 3.73801L12.262 2.7952C12.5223 2.53485 12.9444 2.53485 13.2048 2.7952Z" />
+      <path fill="currentColor" d="M4.68077 12.2647C4.94112 12.0043 4.94112 11.5822 4.68077 11.3219C4.42042 11.0615 3.99831 11.0615 3.73797 11.3219L2.79516 12.2647C2.53481 12.525 2.53481 12.9472 2.79516 13.2075C3.05551 13.4679 3.47762 13.4679 3.73797 13.2075L4.68077 12.2647Z" />
+      <path fill="currentColor" d="M11.3192 11.3219C11.5795 11.0615 12.0016 11.0615 12.262 11.3219L13.2048 12.2647C13.4651 12.525 13.4651 12.9472 13.2048 13.2075C12.9444 13.4679 12.5223 13.4679 12.262 13.2075L11.3192 12.2647C11.0588 12.0043 11.0588 11.5822 11.3192 11.3219Z" />
+      <path fill="currentColor" d="M13.3333 7.33333C12.9651 7.33333 12.6666 7.63181 12.6666 8C12.6666 8.36819 12.9651 8.66667 13.3333 8.66667H14.6666C15.0348 8.66667 15.3333 8.36819 15.3333 8C15.3333 7.63181 15.0348 7.33333 14.6666 7.33333H13.3333Z" />
+      <path fill="currentColor" d="M7.99996 4C5.79082 4 3.99996 5.79086 3.99996 8C3.99996 10.2091 5.79082 12 7.99996 12C10.2091 12 12 10.2091 12 8C12 5.79086 10.2091 4 7.99996 4Z" />
+    </svg>
+  );
+}
+
 
 function CopyButton({ text, label }: { text: string; label: string }): JSX.Element {
   const [copied, setCopied] = useState(false);
@@ -125,9 +194,11 @@ function CopyButton({ text, label }: { text: string; label: string }): JSX.Eleme
       type="button"
       className="copy-btn"
       onClick={handleCopy}
+      data-copied={copied ? 'true' : 'false'}
       aria-label={copied ? 'Copied' : label}
     >
-      {copied ? <CheckIcon /> : <CopyIcon />}
+      <CopyIcon />
+      <CheckIcon />
     </button>
   );
 }
@@ -147,15 +218,12 @@ type PlaygroundPreset = ImageGenerationPreset;
  * importing the package directly aren't affected. */
 const PRESET_OPTIONS: Array<{ value: PlaygroundPreset; label: string }> = [
   { value: 'pixels-mechanic', label: 'Pixel Organic' },
-  { value: 'pixels-organic', label: 'Pixel Mechanic' },
-  { value: 'dots-mechanic', label: 'Dots Mechanic' }
+  { value: 'pixels-organic', label: 'Pixel Mechanic' }
 ];
 
 export function App(): JSX.Element {
-  // Demo page is locked to dark theme as the default look. Removed the
-  // header toggle and OS-preference listener so first paint and subsequent
-  // OS theme flips don't override this choice.
-  const [theme] = useState<ImageGenerationTheme>('dark');
+  // Default to dark, but allow manual switching via the header toggle.
+  const [theme, setTheme] = useState<ImageGenerationTheme>('dark');
   const [preset, setPreset] = useState<PlaygroundPreset>('pixels-organic');
   const [strength, setStrength] = useState(100);
   // Playground starts paused so the page loads quietly; the Play/Pause toggle
@@ -167,6 +235,9 @@ export function App(): JSX.Element {
 
   const handleTogglePlay = useCallback(() => {
     setPlaygroundPaused((p) => !p);
+  }, []);
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   }, []);
   const handleToggleReveal = useCallback(() => {
     const handle = playgroundRef.current;
@@ -220,9 +291,13 @@ export function App(): JSX.Element {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Dark-theme card surface for the demo cards. Light theme falls back to the
-  // preset's bundled cardBg so we don't tint it.
-  const demoCardBg = theme === 'dark' ? '#1B1B1B' : undefined;
+  // Card surface tokens for the four demo cards. Both themes override the
+  // preset's bundled cardBg so all examples share one consistent surface
+  // rather than picking up whatever neutral each preset JSON ships with:
+  //   - Dark:  #1B1B1B (near-black, +0.06 luminance over the page bg #070707)
+  //   - Light: #EEEEEF (warm off-white, sits just under the page bg #fdfdfd
+  //                     and reads as a quiet card on the lighter wash surface)
+  const demoCardBg = theme === 'dark' ? '#1B1B1B' : '#EEEEEF';
   const installCmd = 'npm install img-fx';
   // Both code snippets below are designed to be copy-paste runnable: full
   // imports, real function components, inline image URLs as placeholders.
@@ -238,7 +313,7 @@ export function Card() {
       images={['/a.jpg', '/b.jpg']}
       autoReveal
     >
-      <div style={{ width: 280, height: 280, borderRadius: 24 }} />
+      <div style={{ width: 280, height: 280, borderRadius: 16 }} />
     </ImageGeneration>
   );
 }`;
@@ -263,7 +338,7 @@ export function Card() {
         strength={${(strength / 100).toFixed(2)}}
         images={['/a.jpg', '/b.jpg']}
       >
-        <div style={{ width: 280, height: 280, borderRadius: 24 }} />
+        <div style={{ width: 280, height: 280, borderRadius: 16 }} />
       </ImageGeneration>
       <button onClick={onToggle}>Reveal / hide</button>
     </>
@@ -279,6 +354,26 @@ export function Card() {
       <main id="main-content" className="app">
         <header className="header">
           <nav aria-label="External links" className="top-bar-links">
+            <button
+              type="button"
+              className="icon-btn theme-toggle"
+              onClick={handleToggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {/* Port of skill.html .theme-icon-stack: both icons live in
+                  DOM permanently and crossfade via opacity/scale/blur
+                  driven by `data-active`. data-active="moon" when the
+                  user is in light mode (clicking flips to dark, moon
+                  visible to convey the action), and "sun" in dark mode. */}
+              <span
+                className="theme-icon-stack"
+                data-active={theme === 'dark' ? 'sun' : 'moon'}
+                aria-hidden="true"
+              >
+                <MoonIcon className="theme-icon theme-icon-moon" />
+                <SunIcon className="theme-icon theme-icon-sun" />
+              </span>
+            </button>
             <a
               className="icon-btn"
               href="https://github.com/Jakubantalik/img-fx"
@@ -298,16 +393,39 @@ export function Card() {
               <XIcon />
             </a>
           </nav>
+          {/* Two PNG/JPG variants instead of one shared asset: the silver
+           * `image-header.png` reads well on the near-black dark surface
+           * but loses contrast on the near-white light surface, where the
+           * pixel cells wash out. The dedicated `image-header-light.jpg`
+           * has a softer white-on-white body so the silhouette still
+           * registers in light mode.
+           *
+           * Both <img>s live in the DOM permanently and CSS swaps which
+           * one is `display: block` via the html[data-theme] attribute —
+           * port of skill.html .header-icon-img--light/--dark (lines
+           * 607-615). With a single <img> + theme-conditional `src`, the
+           * browser dropped the old asset and re-decoded the new one on
+           * every theme toggle, which read as a flash. With both decoded
+           * up front the swap is instant. */}
           <div className="header-icon" aria-hidden="true">
             <img
+              className="header-icon-img header-icon-img--dark"
               src="/image-header.png"
               alt=""
               width={207}
               height={138}
               decoding="async"
             />
+            <img
+              className="header-icon-img header-icon-img--light"
+              src="/image-header-light.jpg"
+              alt=""
+              width={207}
+              height={138}
+              decoding="async"
+            />
           </div>
-          <h1 className="title">Image generation</h1>
+          <h1 className="title">Image loader</h1>
           <p className="subtitle-sm">Image generation loader and reveal component</p>
         </header>
 
@@ -333,13 +451,13 @@ export function Card() {
             </ImageGeneration>
           </div>
           <div className="example-row-split">
-            {/* Hero card 2 — Dots / Mechanic (Noise Flow): dot-grid shader
-                with the smooth shader-shaped reveal mask. Random 1-3s
-                initial offset staggers it after card 1.
-                Image hold is randomised 0.75-1.25s per cycle. */}
+            {/* Hero card 2 — Pixel Mechanic (Chromium Flow): sharp curved
+                chrome ridges with structured/mechanical feel. Random 1-3s
+                initial offset staggers it after card 1. Image hold is
+                randomised 0.75-1.25s per cycle. */}
             <div className="example-cell">
               <ImageGeneration
-                preset="dots-mechanic"
+                preset="pixels-organic"
                 theme={theme}
                 cardBg={demoCardBg}
                 images={IMAGE_POOL}
@@ -347,21 +465,6 @@ export function Card() {
                 revealDelayRange={[2.5, 4.5]}
                 revealInitialDelay={[1, 3]}
                 revealHoldMs={[750, 1250]}
-                /* The dots-mechanic shader fills the entire card with bright
-                 * uniform white dots, which raises the average luminance of
-                 * the visible card area noticeably above the sparser pixel
-                 * presets (mostly-dark mosaic with a few bright cells). At
-                 * full strength the card reads "lighter" than the other
-                 * hero cards even though the literal cardBg is identical
-                 * (#1B1B1B for every card via demoCardBg).
-                 *
-                 * Strength only modulates the shader canvas opacity (see
-                 * ImageGeneration.tsx -> inst.canvas = shader); the overlay
-                 * canvas that paints the revealed image is unaffected. So
-                 * dimming strength to 0.5 evens out the shader brightness
-                 * across hero cards without darkening the revealed image
-                 * or modifying the source-of-truth preset values. */
-                strength={0.5}
                 className="hero-card-tall"
                 excludeSrcs={heroTallCoord.excludeSrcs}
                 onCycle={heroTallCoord.onCycle}
@@ -369,15 +472,10 @@ export function Card() {
                 <div />
               </ImageGeneration>
             </div>
-            {/* Hero card 3 — labelled "Pixel Mechanic" in the playground —
-                uses the Chromium Flow preset (effect #22) since its sharp
-                curved chrome ridges read as structured / mechanical. The
-                library preset name stays `pixels-organic` to match the
-                source JSON file. Random 1-3s initial offset staggers it
-                after card 1. Image hold is randomised 0.75-1.25s per cycle. */}
+            {/* Hero card 3 — Pixel Organic (Nebula), repeated as requested. */}
             <div className="example-cell">
               <ImageGeneration
-                preset="pixels-organic"
+                preset="pixels-mechanic"
                 theme={theme}
                 cardBg={demoCardBg}
                 images={IMAGE_POOL}
