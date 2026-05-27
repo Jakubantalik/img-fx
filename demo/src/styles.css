@@ -261,7 +261,18 @@ html[data-theme='light'] .icon-btn:hover svg {
   will-change: transform, opacity;
 }
 
-.header-icon:hover .header-icon-img {
+/* Only apply the rotate on devices that actually have a hover capability.
+ * On touch screens `:hover` latches on tap and only releases when the
+ * user taps something else, so the icon used to rotate on first tap and
+ * stay rotated indefinitely. `(hover: hover)` filters out coarse pointer
+ * devices entirely. Touch users still get a brief tap feedback via the
+ * `:active` rule below. */
+@media (hover: hover) {
+  .header-icon:hover .header-icon-img {
+    transform: rotate(8deg);
+  }
+}
+.header-icon:active .header-icon-img {
   transform: rotate(8deg);
 }
 
@@ -294,7 +305,8 @@ html:not([data-theme='light']) .header-icon-img--light {
   .header-icon-img {
     transition: none;
   }
-  .header-icon:hover .header-icon-img {
+  .header-icon:hover .header-icon-img,
+  .header-icon:active .header-icon-img {
     transform: none;
   }
 }
@@ -927,6 +939,13 @@ html[data-theme='light'] .strength-value {
   cursor: grab;
   opacity: 0;
   z-index: 2;
+  /* Mobile drag fix: without `touch-action: none` the browser steals
+   * horizontal swipes for scroll/zoom gestures, so the slider never
+   * receives the touchmove stream and dragging silently no-ops on iOS
+   * / Android. `none` is the right value here (not `pan-y`) because the
+   * input fills its parent and we want every touch inside the track to
+   * drive the slider, not page-scroll. */
+  touch-action: none;
   /* Kill the browser-native focus outline; some Chromium builds draw
    * the range-input focus ring as a layer that ignores `opacity: 0` on
    * the input, so the bright blue rectangle leaks across the visible
@@ -938,6 +957,28 @@ html[data-theme='light'] .strength-value {
 }
 .strength-input::-moz-focus-outer {
   border: 0;
+}
+/* Give the thumb an explicit, full-height hit target. With
+ * `-webkit-appearance: none` on the input, iOS Safari collapses the
+ * default thumb to zero width, which leaves nothing to drag on touch
+ * even though the input visually fills the track. We set a square
+ * touch-friendly size on both engines; the input is `opacity: 0` so
+ * the visible style doesn't matter, only the hit area does. */
+.strength-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+}
+.strength-input::-moz-range-thumb {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  cursor: grab;
 }
 /* Focus indicator on the track, but only when the inner <input> took
  * focus via keyboard (`:focus-visible`) — not mouse click. The previous
@@ -1177,10 +1218,30 @@ html[data-theme='light'] .footer-name:hover {
     max-width: 280px;
   }
 
+  /* Keep the controls on a single row on mobile. The Type group keeps
+   * its intrinsic width (two preset buttons are content-sized) while
+   * the Strength group flex-fills the remaining space — the slider
+   * track is the only piece that's safe to shrink, since its visual
+   * scale (filled bar + "NN%" label) reads well at any width down to
+   * ~80px. Without these overrides, the locked `width: 140px` on
+   * `.control-group--strength` plus `flex-wrap: wrap` pushed the
+   * slider onto a second row even when ~200px of horizontal space was
+   * still available next to the preset buttons. */
   .playground-controls {
-    flex-wrap: wrap;
-    gap: 16px;
+    flex-wrap: nowrap;
+    align-items: flex-end;
+    gap: 12px;
     padding: 12px;
+  }
+
+  .control-group--strength {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  .strength-value {
+    left: 9px;
   }
 
   .playground-preview {

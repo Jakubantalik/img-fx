@@ -220,23 +220,77 @@ function CopyButton({ text, label }: { text: string; label: string }): JSX.Eleme
     };
   }, []);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true);
-      setSwapState('copied');
-      window.clearTimeout(iconTimerRef.current);
-      window.clearTimeout(swapTimerRef.current);
-      const isTouch =
-        typeof window.matchMedia === 'function' &&
-        window.matchMedia('(hover: none)').matches;
-      const dwell = isTouch ? 2000 : 1600;
-      iconTimerRef.current = window.setTimeout(() => {
-        setCopied(false);
-        swapTimerRef.current = window.setTimeout(() => {
-          setSwapState('copy');
-        }, 200);
-      }, dwell);
-    });
+  const handleCopy = useCallback(async () => {
+    // `navigator.clipboard` requires a secure context (HTTPS / localhost).
+    // When the demo is opened over a LAN IP on a phone for testing, the
+    // page runs in an insecure context and `navigator.clipboard` is
+    // `undefined` — the old `.then()` chain would throw synchronously,
+    // never flip the icon, and the button looked dead on mobile. Even
+    // in a secure context iOS Safari can reject the write (focus loss,
+    // user-gesture quirks), which the previous code also ignored.
+    //
+    // Strategy: try the modern API first when available, fall back to a
+    // hidden-<textarea> + `execCommand('copy')` shim that works in any
+    // context. Only flip the "copied" state when at least one path
+    // actually succeeded so the UI never lies about the clipboard.
+    const writeText = async (value: string): Promise<boolean> => {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(value);
+          return true;
+        } catch {
+          // fall through to the execCommand path
+        }
+      }
+      if (typeof document === 'undefined') return false;
+      const ta = document.createElement('textarea');
+      ta.value = value;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '0';
+      ta.style.left = '0';
+      ta.style.width = '1px';
+      ta.style.height = '1px';
+      ta.style.padding = '0';
+      ta.style.border = 'none';
+      ta.style.opacity = '0';
+      ta.style.pointerEvents = 'none';
+      document.body.appendChild(ta);
+      const sel = document.getSelection();
+      const savedRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : null;
+      ta.focus();
+      ta.select();
+      ta.setSelectionRange(0, value.length);
+      let ok = false;
+      try {
+        ok = document.execCommand('copy');
+      } catch {
+        ok = false;
+      }
+      ta.remove();
+      if (savedRange && sel) {
+        sel.removeAllRanges();
+        sel.addRange(savedRange);
+      }
+      return ok;
+    };
+
+    const ok = await writeText(text);
+    if (!ok) return;
+    setCopied(true);
+    setSwapState('copied');
+    window.clearTimeout(iconTimerRef.current);
+    window.clearTimeout(swapTimerRef.current);
+    const isTouch =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(hover: none)').matches;
+    const dwell = isTouch ? 2000 : 1600;
+    iconTimerRef.current = window.setTimeout(() => {
+      setCopied(false);
+      swapTimerRef.current = window.setTimeout(() => {
+        setSwapState('copy');
+      }, 200);
+    }, dwell);
   }, [text]);
 
   return (
