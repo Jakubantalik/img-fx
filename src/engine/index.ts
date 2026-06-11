@@ -32,6 +32,7 @@ export {
 export {
   createCycle,
   type Cycle,
+  type CycleAnimationCompleteEvent,
   type CycleEvent,
   type CycleOptions,
   type CyclePhase

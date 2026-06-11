@@ -55,6 +55,7 @@ export function Card() {
 | `borderRadius`      | `number`                                                              | (auto)      | Override the corner radius (px). Auto-detected from the wrapped child by default.                |
 | `paused`            | `boolean`                                                             | `false`     | Freezes shader and scheduler.                                                                    |
 | `onCycle`           | `(p) => void`                                                         | -           | Fires on each phase change: `idle` / `reveal` / `visible` / `hide`.                              |
+| `onAnimationComplete` | `({ type, src }) => void`                                           | -           | Fires when a reveal or hide animation has fully completed (`type: 'reveal' \| 'hide'`).          |
 
 ## Manual reveal (ref handle)
 

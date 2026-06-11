@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ImageGeneration,
+  type ImageGenerationAnimationCompleteEvent,
   type ImageGenerationCycleEvent,
   type ImageGenerationHandle,
   type ImageGenerationPreset,
@@ -363,6 +364,8 @@ export function App(): JSX.Element {
   // below only flips this local state. The hero examples keep auto-playing.
   const [playgroundPaused, setPlaygroundPaused] = useState(true);
   const [imageRevealed, setImageRevealed] = useState(false);
+  const [lastAnimationComplete, setLastAnimationComplete] =
+    useState<ImageGenerationAnimationCompleteEvent | null>(null);
   const strengthId = useId();
   const playgroundRef = useRef<ImageGenerationHandle | null>(null);
 
@@ -430,6 +433,9 @@ export function App(): JSX.Element {
         playgroundBaseCoord.onCycle(e);
         if (e.phase === 'reveal' || e.phase === 'visible') setImageRevealed(true);
         else if (e.phase === 'idle') setImageRevealed(false);
+      },
+      onAnimationComplete: (e: ImageGenerationAnimationCompleteEvent) => {
+        setLastAnimationComplete(e);
       }
     }),
     [playgroundBaseCoord]
@@ -486,6 +492,9 @@ export function Card() {
         preset="${preset}"
         strength={${(strength / 100).toFixed(2)}}
         images={['/a.jpg', '/b.jpg']}
+        onAnimationComplete={(event) => {
+          console.log(event.type, event.src);
+        }}
       >
         <div style={{ width: 280, height: 280, borderRadius: 16 }} />
       </ImageGeneration>
@@ -714,6 +723,7 @@ export function Card() {
               paused={playgroundPaused}
               excludeSrcs={playgroundCoord.excludeSrcs}
               onCycle={playgroundCoord.onCycle}
+              onAnimationComplete={playgroundCoord.onAnimationComplete}
             >
               <div className="playground-card" />
             </ImageGeneration>
@@ -740,6 +750,11 @@ export function Card() {
               >
                 {imageRevealed ? 'Hide image' : 'Reveal image'}
               </button>
+            </div>
+            <div className="playground-event" aria-live="polite">
+              <span>Animation complete</span>
+              <strong>{lastAnimationComplete?.type ?? '-'}</strong>
+              <code>{lastAnimationComplete ? 'completed' : 'waiting'}</code>
             </div>
           </div>
 

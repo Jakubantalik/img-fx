@@ -1,5 +1,5 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
-import type { CycleEvent } from './engine';
+import type { CycleAnimationCompleteEvent, CycleEvent } from './engine';
 import type { PresetName } from './presets';
 
 /**
@@ -24,6 +24,9 @@ export type ImageGenerationPreset = PresetName;
 
 /** Phase event emitted by the auto-reveal scheduler. */
 export type ImageGenerationCycleEvent = CycleEvent;
+
+/** Event emitted when a reveal or hide animation has fully completed. */
+export type ImageGenerationAnimationCompleteEvent = CycleAnimationCompleteEvent;
 
 /**
  * Imperative handle exposed via `ref` on `<ImageGeneration>`. Lets callers
@@ -179,6 +182,9 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
 
   /** Phase event hook for the auto-reveal cycle. */
   onCycle?: (event: ImageGenerationCycleEvent) => void;
+
+  /** Fires when a reveal or hide animation has fully completed. */
+  onAnimationComplete?: (event: ImageGenerationAnimationCompleteEvent) => void;
 
   /**
    * Optional callback invoked just before each image pick that returns a list
