@@ -23,6 +23,11 @@ export interface CycleEvent {
   src: string | null;
 }
 
+export interface CycleAnimationCompleteEvent {
+  type: 'reveal' | 'hide';
+  src: string;
+}
+
 export interface CycleOptions {
   reveal: RevealState;
   /** Image pool. Random pick per cycle, never same as previous. */
@@ -41,6 +46,8 @@ export interface CycleOptions {
   initialDelayMs?: number;
   /** Cycle event hook. */
   onPhase?: (event: CycleEvent) => void;
+  /** Animation completion hook. */
+  onAnimationComplete?: (event: CycleAnimationCompleteEvent) => void;
   /**
    * Optional callback invoked just before each pick that returns a list of
    * src strings the cycle MUST avoid this round (in addition to its own
@@ -79,7 +86,9 @@ export interface Cycle {
   getPhase: () => CyclePhase;
   setPaused: (paused: boolean) => void;
   setImages: (images: string[]) => void;
-  setOptions: (opts: Partial<Pick<CycleOptions, 'delayRange' | 'holdMs' | 'fadeOutMs' | 'onPhase'>>) => void;
+  setOptions: (
+    opts: Partial<Pick<CycleOptions, 'delayRange' | 'holdMs' | 'fadeOutMs' | 'onPhase' | 'onAnimationComplete'>>
+  ) => void;
   isRunning: () => boolean;
   dispose: () => void;
 }
@@ -90,6 +99,7 @@ export function createCycle(opts: CycleOptions): Cycle {
   let holdMs = opts.holdMs;
   let fadeOutMs = opts.fadeOutMs;
   let onPhase = opts.onPhase;
+  let onAnimationComplete = opts.onAnimationComplete;
   let excludeSrcs = opts.excludeSrcs;
 
   let phase: CyclePhase = 'idle';
@@ -110,6 +120,11 @@ export function createCycle(opts: CycleOptions): Cycle {
   function emit(p: CyclePhase): void {
     phase = p;
     onPhase?.({ phase: p, src: currentSrc });
+  }
+
+  function emitAnimationComplete(type: CycleAnimationCompleteEvent['type']): void {
+    if (!currentSrc) return;
+    onAnimationComplete?.({ type, src: currentSrc });
   }
 
   function clearTimer(): void {
@@ -150,6 +165,7 @@ export function createCycle(opts: CycleOptions): Cycle {
     timer = setTimeout(() => {
       timer = null;
       if (paused) return;
+      emitAnimationComplete('hide');
       currentSrc = null;
       if (activeReschedule) {
         scheduleIdle();
@@ -219,6 +235,7 @@ export function createCycle(opts: CycleOptions): Cycle {
           onRevealComplete: () => {
             if (!running || paused) return;
             emit('visible');
+            emitAnimationComplete('reveal');
             if (holdMode === 'manual') {
               // Stay in `visible` indefinitely; consumer will call triggerHide()
               // to fade back to the shader.
@@ -325,6 +342,7 @@ export function createCycle(opts: CycleOptions): Cycle {
       if (next.holdMs != null) holdMs = next.holdMs;
       if (next.fadeOutMs != null) fadeOutMs = next.fadeOutMs;
       if (next.onPhase) onPhase = next.onPhase;
+      if (next.onAnimationComplete) onAnimationComplete = next.onAnimationComplete;
     },
     isRunning() {
       return running && !paused;
