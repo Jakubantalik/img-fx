@@ -1,6 +1,7 @@
 export { ImageGeneration } from './ImageGeneration';
 
 export type {
+  ImageGenerationAnimationCompleteEvent,
   ImageGenerationCycleEvent,
   ImageGenerationHandle,
   ImageGenerationPreset,

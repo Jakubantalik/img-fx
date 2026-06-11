@@ -124,6 +124,7 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
     borderRadius,
     paused = false,
     onCycle,
+    onAnimationComplete,
     excludeSrcs,
     className,
     style,
@@ -139,6 +140,7 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
   const revealRef = useRef<RevealState | null>(null);
   const cycleRef = useRef<Cycle | null>(null);
   const onCycleRef = useRef(onCycle);
+  const onAnimationCompleteRef = useRef(onAnimationComplete);
   const excludeSrcsRef = useRef(excludeSrcs);
 
   useImperativeHandle(
@@ -168,6 +170,9 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
   useEffect(() => {
     onCycleRef.current = onCycle;
   }, [onCycle]);
+  useEffect(() => {
+    onAnimationCompleteRef.current = onAnimationComplete;
+  }, [onAnimationComplete]);
   useEffect(() => {
     excludeSrcsRef.current = excludeSrcs;
   }, [excludeSrcs]);
@@ -275,6 +280,7 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
       fadeOutMs: revealFadeOutMsRef.current,
       initialDelayMs: initialDelayMsRef.current,
       onPhase: (e) => onCycleRef.current?.(e),
+      onAnimationComplete: (e) => onAnimationCompleteRef.current?.(e),
       excludeSrcs: () => excludeSrcsRef.current?.() ?? null
     });
     cycleRef.current = cycle;
