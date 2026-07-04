@@ -39,11 +39,16 @@ export function Card() {
 }
 ```
 
+Three presets ship with the library: `pixels-organic` (Chromium Flow),
+`pixels-mechanic` (Nebula), and `sweep-gradient` (a fast top-left → bottom-right
+gradient sweep with per-cell random flicker that reads as "generating"; its
+reveal materializes the image cell-by-cell along the traveling band).
+
 ## Props
 
 | Prop                | Type                                                                  | Default     | Notes                                                                                            |
 | ------------------- | --------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------ |
-| `preset`            | `'pixels-organic' \| 'pixels-mechanic'`                               | `'pixels-organic'` | Selects the bundled effect preset (Type × Variant).                                              |
+| `preset`            | `'pixels-organic' \| 'pixels-mechanic' \| 'sweep-gradient'`           | `'pixels-organic'` | Selects the bundled effect preset. `pixels-organic` = Chromium Flow mosaic, `pixels-mechanic` = Nebula mosaic, `sweep-gradient` = diagonal "generating" gradient sweep with per-cell flicker. |
 | `theme`             | `'auto' \| 'dark' \| 'light'`                                          | `'auto'`    | `auto` checks `<html data-theme>`, `.dark`/`.light` class, inline `color-scheme`, then `prefers-color-scheme`. Live-updates via MutationObserver. |
 | `strength`          | `number` (0..1)                                                       | `1`         | Final opacity multiplier. Doesn't change shader animation.                                       |
 | `cardBg`            | `string` (any CSS colour)                                             | preset      | Override the host card surface colour. Applied verbatim to the wrapper background (alpha preserved) AND parsed to opaque RGB for the shader's `u_cardBg` so colour-proximity logic stays in sync. Accepts hex, `rgb()`/`rgba()`, `hsl()`, named colours, etc. |
@@ -107,7 +112,7 @@ chunky pixels on big cards.
 ## Performance
 
 - Single shared `THREE.WebGLRenderer` for the whole page; one WebGL context.
-- 30 fps cap via rAF accumulator (matches `image.html`).
+- 10 fps default cap via rAF accumulator — ideal for the slow-drift presets. Raise it with `setFrameRate(15)` (up to 60) for faster custom presets.
 - `IntersectionObserver` pauses any card that scrolls offscreen.
 - Strength is implemented as `canvas.style.opacity` — no shader recompile, no uniform reupload.
 - Reveal scratch canvases are reused across frames; only re-allocated when grid size changes.

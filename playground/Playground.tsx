@@ -23,14 +23,10 @@ const IMAGES = [
   '/images/photo-1777324369706-609d83aece87.avif'
 ];
 
-const TYPE_OPTIONS: Array<{ value: 'dots' | 'pixels'; label: string }> = [
-  { value: 'dots', label: 'Dots' },
-  { value: 'pixels', label: 'Pixels' }
-];
-
-const VARIANT_OPTIONS: Array<{ value: 'organic' | 'mechanic'; label: string }> = [
-  { value: 'organic', label: 'Organic' },
-  { value: 'mechanic', label: 'Mechanic' }
+const PRESET_OPTIONS: Array<{ value: ImageGenerationPreset; label: string }> = [
+  { value: 'pixels-mechanic', label: 'Pixel Organic' },
+  { value: 'pixels-organic', label: 'Pixel Mechanic' },
+  { value: 'sweep-gradient', label: 'Gradient Sweep' }
 ];
 
 const THEME_OPTIONS: Array<{ value: ImageGenerationTheme; label: string }> = [
@@ -39,13 +35,8 @@ const THEME_OPTIONS: Array<{ value: ImageGenerationTheme; label: string }> = [
   { value: 'light', label: 'Light' }
 ];
 
-function compose(type: 'dots' | 'pixels', variant: 'organic' | 'mechanic'): ImageGenerationPreset {
-  return `${type}-${variant}` as ImageGenerationPreset;
-}
-
 export function Playground(): JSX.Element {
-  const [type, setType] = useState<'dots' | 'pixels'>('dots');
-  const [variant, setVariant] = useState<'organic' | 'mechanic'>('organic');
+  const [preset, setPreset] = useState<ImageGenerationPreset>('pixels-organic');
   const [theme, setTheme] = useState<ImageGenerationTheme>('auto');
   const [strength, setStrength] = useState(100);
   const [autoReveal, setAutoReveal] = useState(true);
@@ -66,8 +57,6 @@ export function Playground(): JSX.Element {
     }
   }, [theme]);
 
-  const preset = compose(type, variant);
-
   return (
     <div className="pg-page">
       <div className="pg-header">
@@ -75,31 +64,15 @@ export function Playground(): JSX.Element {
       </div>
 
       <div className="pg-toolbar">
-        <div className="pg-control" role="radiogroup" aria-label="Type">
-          <span className="pg-control-label">Type</span>
+        <div className="pg-control" role="radiogroup" aria-label="Preset">
+          <span className="pg-control-label">Preset</span>
           <div className="pg-toggle-row">
-            {TYPE_OPTIONS.map((o) => (
+            {PRESET_OPTIONS.map((o) => (
               <button
                 type="button"
                 key={o.value}
-                className={`tab-btn${type === o.value ? ' active' : ''}`}
-                onClick={() => setType(o.value)}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="pg-control" role="radiogroup" aria-label="Variant">
-          <span className="pg-control-label">Variant</span>
-          <div className="pg-toggle-row">
-            {VARIANT_OPTIONS.map((o) => (
-              <button
-                type="button"
-                key={o.value}
-                className={`tab-btn${variant === o.value ? ' active' : ''}`}
-                onClick={() => setVariant(o.value)}
+                className={`tab-btn${preset === o.value ? ' active' : ''}`}
+                onClick={() => setPreset(o.value)}
               >
                 {o.label}
               </button>

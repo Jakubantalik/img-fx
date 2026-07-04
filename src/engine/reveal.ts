@@ -152,6 +152,10 @@ interface RevealInternals {
    *  and reused thereafter; MASK_SIZE is a compile-time constant so the
    *  buffer dimensions never need to change. */
   maskImgData: ImageData | null;
+  /** Pooled per-cell flicker offsets for the gradientSweep mask. Recomputed
+   *  every frame (values change with the flicker clock) but only reallocated
+   *  when the cell grid size changes. */
+  gsFlickerTable: Float32Array | null;
 
   // Pixel-mode + dot-mode pixelation scratch. The same canvases are reused
   // by both code paths because `preset.dotMode` is fixed per-instance, so
@@ -413,6 +417,48 @@ function paintMaskedFrame(
   }
 
   const threshold = 1 - eased * (1 + softBand);
+  const isGradientSweep = maskShape === 'gradientSweep';
+  let gsW = 0;
+  let gsPos = 0;
+  let gsGrid = 2;
+  let gsAmp = 0;
+  let gsTable: Float32Array | null = null;
+  if (isGradientSweep) {
+    gsW = 0.9 / Math.max(preset.scale, 0.25);
+    gsPos = -gsW + eased * (1 + 2 * gsW);
+    gsAmp = preset.flicker ?? 0;
+    gsGrid = Math.max(2, Math.floor(6 + preset.pixelConfig.cellSize * 74));
+    if (gsAmp > 0.003) {
+      const gsT = inst.accumulatedTime * preset.speed * 1.6;
+      // Wrap the stepped clock (mirrors the shader's mod-1024 wrap) so the
+      // hash inputs stay small however long the session has been running,
+      // and so the mask flicker stays phase-aligned with the shader's.
+      const rawStep = Math.floor(gsT);
+      const gsStep = rawStep % 1024;
+      const gsStep1 = (gsStep + 1) % 1024;
+      let gsFz = gsT - rawStep;
+      gsFz = gsFz * gsFz * (3 - 2 * gsFz);
+      const gsHash = (i: number, s: number): number => {
+        const x = Math.sin(i * 127.1 + s * 17.23) * 43758.5453;
+        return x - Math.floor(x);
+      };
+      // Precompute the per-cell flicker offsets ONCE per frame (gsGrid² cells,
+      // typically ~500) instead of hashing per mask pixel (maskSize² pixels ×
+      // 2 sin calls ≈ 8k/frame). The pixel loop just indexes this table and
+      // scales by its edge factor — output is bit-identical to the inline
+      // version. The buffer is pooled on the reveal state and only
+      // reallocated when the cell grid size changes.
+      const cellCount = gsGrid * gsGrid;
+      if (!state.gsFlickerTable || state.gsFlickerTable.length !== cellCount) {
+        state.gsFlickerTable = new Float32Array(cellCount);
+      }
+      gsTable = state.gsFlickerTable;
+      for (let i = 0; i < cellCount; i++) {
+        const rnd = gsHash(i, gsStep) * (1 - gsFz) + gsHash(i, gsStep1) * gsFz;
+        gsTable[i] = (rnd - 0.5) * gsAmp * 1.6;
+      }
+    }
+  }
 
   // Reuse the pooled buffer initialised by ensureScratch above.
   const maskImgData = state.maskImgData as ImageData;
@@ -443,10 +489,30 @@ function paintMaskedFrame(
         } else {
           val = (sampleData[i] * 0.299 + sampleData[i + 1] * 0.587 + sampleData[i + 2] * 0.114) / 255;
         }
-      } else {
+      } else if (!isGradientSweep) {
         val = getMaskValue(maskShape, r, c, maskSize);
+      } else {
+        val = 0;
       }
-      let a = (val - threshold) / softBand;
+      let a: number;
+      if (isGradientSweep) {
+        const nx = c / (maskSize - 1);
+        const ny = r / (maskSize - 1);
+        const dd = (nx + ny) * 0.5;
+        a = (gsPos + gsW - dd) / (2 * gsW);
+        if (gsTable && a > -0.5 && a < 1.5) {
+          // Edge-localized jitter: strongest mid-transition, zero in fully
+          // hidden/revealed areas so the settled image never flickers.
+          const at = a < 0 ? 0 : a > 1 ? 1 : a;
+          const edge = at * (1 - at) * 4;
+          if (edge > 0.001) {
+            const ci = Math.floor(ny * gsGrid) * gsGrid + Math.floor(nx * gsGrid);
+            a += gsTable[ci] * edge;
+          }
+        }
+      } else {
+        a = (val - threshold) / softBand;
+      }
       if (a < 0) a = 0;
       else if (a > 1) a = 1;
       a = a * a * (3 - 2 * a);
@@ -810,6 +876,7 @@ export function createReveal(opts: CreateRevealOptions): RevealState {
     maskGrad: null,
     maskGradCtx: null,
     maskImgData: null,
+    gsFlickerTable: null,
     pixCanvas: null,
     pixCtx: null,
     pixDrop: null,
@@ -929,6 +996,7 @@ export function createReveal(opts: CreateRevealOptions): RevealState {
       state.maskGrad = null;
       state.maskGradCtx = null;
       state.maskImgData = null;
+      state.gsFlickerTable = null;
       state.pixCanvas = null;
       state.pixCtx = null;
       state.pixDrop = null;

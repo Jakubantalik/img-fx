@@ -316,9 +316,7 @@ function CopyButton({ text, label }: { text: string; label: string }): JSX.Eleme
   );
 }
 
-/** All bundled presets are exposed in the playground's Type picker. The
- *  library only ships three since 0.2.0 (the older `dots-organic` Plasma
- *  variant was removed for lack of distinctive visual coverage). */
+/** All bundled presets are exposed in the playground's Type picker. */
 type PlaygroundPreset = ImageGenerationPreset;
 
 /* Label-to-preset mapping reflects the visual character of each shader, NOT
@@ -327,11 +325,14 @@ type PlaygroundPreset = ImageGenerationPreset;
  *     drifting nebula clouds that read as organic.
  *   - "Pixel Mechanic" → pixels-organic (Chromium Flow, effect #22) —
  *     sharp curved chrome ridges that read as structured / mechanical.
+ *   - "Gradient Sweep" → sweep-gradient (effect #25) — fast diagonal
+ *     generating sweep with per-cell flicker.
  * Library preset names stay aligned to the source JSONs so consumers
  * importing the package directly aren't affected. */
 const PRESET_OPTIONS: Array<{ value: PlaygroundPreset; label: string }> = [
   { value: 'pixels-mechanic', label: 'Pixel Organic' },
-  { value: 'pixels-organic', label: 'Pixel Mechanic' }
+  { value: 'pixels-organic', label: 'Pixel Mechanic' },
+  { value: 'sweep-gradient', label: 'Gradient Sweep' }
 ];
 
 // Resolve the OS-level colour preference. Used to seed the initial
@@ -621,10 +622,12 @@ export function Card() {
                 <div />
               </ImageGeneration>
             </div>
-            {/* Hero card 3 — Pixel Organic (Nebula), repeated as requested. */}
+            {/* Hero card 3 — Gradient Sweep (effect #25): fast diagonal
+                generating sweep with per-cell flicker, revealed through the
+                gradientSweep mask. */}
             <div className="example-cell">
               <ImageGeneration
-                preset="pixels-mechanic"
+                preset="sweep-gradient"
                 theme={theme}
                 cardBg={demoCardBg}
                 images={IMAGE_POOL}

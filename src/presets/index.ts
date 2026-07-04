@@ -1,9 +1,10 @@
 /**
  * Bundled preset configurations for the img-fx effect.
  *
- * Direct ports of the two JSON files in `presets/`:
+ * Direct ports of the bundled JSON presets in `presets/`:
  *   • preset-pixels-style-3.json  -> pixels-organic  (Chromium Flow)
  *   • preset-pixels-style-4.json  -> pixels-mechanic (Nebula)
+ *   • sweep-gradient defaults     -> sweep-gradient  (Gradient Sweep)
  *
  * Each preset ships a `dark` and `light` mode block; the resolved theme picks
  * the right one at runtime.
@@ -14,8 +15,9 @@
 
 import { PIXELS_MECHANIC } from './pixels-mechanic';
 import { PIXELS_ORGANIC } from './pixels-organic';
+import { SWEEP_GRADIENT } from './sweep-gradient';
 
-export type PresetName = 'pixels-organic' | 'pixels-mechanic';
+export type PresetName = 'pixels-organic' | 'pixels-mechanic' | 'sweep-gradient';
 export type PresetTheme = 'dark' | 'light';
 
 /** Per-cell mosaic configuration for pixel-mode rendering. */
@@ -79,7 +81,8 @@ export type MaskShape =
   | 'diagonalBR'
   | 'diamond'
   | 'blindsH'
-  | 'blindsV';
+  | 'blindsV'
+  | 'gradientSweep';
 
 /** A single theme-mode block of a preset (mirrors the JSON shape). */
 export interface PresetMode {
@@ -98,6 +101,8 @@ export interface PresetMode {
   scale: number;
   softness: number;
   distortion: number;
+  /** Gradient sweep cell flicker amplitude 0..1. */
+  flicker?: number;
   complexity: number;
   shape: number;
   blur: number;
@@ -105,6 +110,8 @@ export interface PresetMode {
   vignette: number;
   vigOpacity: number;
   shaderOpacity: number;
+  /** Gradient sweep movement easing type (0..4). */
+  sweepEase?: number;
   revealConfig: RevealConfig;
   /** Human-readable effect name for diagnostics. */
   effect: string;
@@ -171,7 +178,8 @@ export interface EnginePreset {
  * `dotMode: 1`, which is in both `0 | 1` and `0 | 1 | 2`. */
 const _PRESETS_INTERNAL: Record<PresetName, EnginePreset> = {
   'pixels-organic': PIXELS_ORGANIC,
-  'pixels-mechanic': PIXELS_MECHANIC
+  'pixels-mechanic': PIXELS_MECHANIC,
+  'sweep-gradient': SWEEP_GRADIENT
 };
 
 export const PRESETS = _PRESETS_INTERNAL as unknown as Record<PresetName, Preset>;
@@ -296,4 +304,4 @@ export function parseCssColor(input: string): [number, number, number] {
   return [0, 0, 0];
 }
 
-export { PIXELS_ORGANIC, PIXELS_MECHANIC };
+export { PIXELS_ORGANIC, PIXELS_MECHANIC, SWEEP_GRADIENT };

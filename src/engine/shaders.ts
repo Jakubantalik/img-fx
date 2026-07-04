@@ -15,11 +15,12 @@ export const FRAG_SRC = /* glsl */ `
   uniform vec3 u_color1, u_color2, u_color3, u_color4, u_color5, u_color6, u_color7, u_cardBg;
   uniform float u_alpha1, u_alpha2, u_alpha3, u_alpha4, u_alpha5, u_alpha6, u_alpha7;
   uniform float u_speed, u_intensity, u_scale, u_direction;
-  uniform float u_softness, u_distortion, u_complexity, u_shape;
+  uniform float u_softness, u_distortion, u_complexity, u_shape, u_flicker;
   uniform float u_vignette, u_vigOpacity, u_blur, u_highlight, u_shaderOpacity;
   uniform float u_cellSize, u_gap, u_dotSize, u_dotSoftness, u_dotOpacity, u_hlScale, u_fillOpacity, u_edgeFade, u_fadeStr;
   uniform float u_dotMode;
   uniform int u_effect;
+  uniform int u_sweepEase;
 
   // Reference card edge length (CSS px) at which the original preset cellSize
   // gives the canonical cell count. Cell PIXEL size stays constant across card
@@ -107,6 +108,19 @@ export const FRAG_SRC = /* glsl */ `
       nfbm(p + vec2(t * 0.1, 0.0)),
       nfbm(p + vec2(0.0, t * 0.12) + 5.0)
     ) * str;
+  }
+
+  float sweepEase(float x) {
+    if (u_sweepEase == 1) return x * x * (3.0 - 2.0 * x);
+    if (u_sweepEase == 2) {
+      float p = 1.0 - x;
+      return 1.0 - p * p * p;
+    }
+    if (u_sweepEase == 3) {
+      return x < 0.5 ? 4.0 * x * x * x : 1.0 - pow(-2.0 * x + 2.0, 3.0) * 0.5;
+    }
+    if (u_sweepEase == 4) return 1.0 - pow(2.0, -10.0 * x) * (1.0 - x);
+    return x;
   }
 
   float blob(vec2 p, vec2 center, float radius) {
@@ -422,6 +436,40 @@ export const FRAG_SRC = /* glsl */ `
       float total = a1 + a2 + a3 + a4 + a5 + a6 + a7 + 0.001;
       col = (u_color1 * a1 + u_color2 * a2 + u_color3 * a3 + u_color4 * a4
            + u_color5 * a5 + u_color6 * a6 + u_color7 * a7) / total;
+
+    } else if (u_effect == 25) {
+      float d = (uv.x + (1.0 - uv.y)) * 0.5;
+      float w = 0.9 / max(u_scale, 0.25);
+      float cyc = t * 0.08;
+      float pA = mix(-w, 1.0 + w, sweepEase(fract(cyc)));
+      float pB = mix(-w, 1.0 + w, sweepEase(fract(cyc + 0.5)));
+      float band = max(
+        clamp(1.0 - abs(d - pA) / w, 0.0, 1.0),
+        clamp(1.0 - abs(d - pB) / w, 0.0, 1.0)
+      );
+      float v = band * u_intensity;
+
+      vec2 ggs = gridCounts(6.0 + u_cellSize * 74.0);
+      if (u_dotMode > 1.5) {
+        ggs = max(vec2(2.0), floor(ggs * (1.0 - u_gap * 0.8)));
+      }
+      vec2 cell = floor(uv * ggs);
+      float clk = t * 1.6;
+      // Wrap the stepped clock to keep sin() arguments small. u_time grows
+      // unbounded over a session; on mediump-float GPUs (older Android, some
+      // iOS) large hash inputs lose precision and the flicker bands/freezes.
+      // mod(x, 1024) keeps the crossfade continuous across the wrap
+      // (step 1023 fades into step 0, whose hash is the next s0).
+      float step0 = mod(floor(clk), 1024.0);
+      float step1 = mod(step0 + 1.0, 1024.0);
+      float fz = smoothstep(0.0, 1.0, fract(clk));
+      float cellSeed = dot(cell, vec2(127.1, 311.7));
+      float r1 = fract(sin(cellSeed + step0 * 17.23) * 43758.5453);
+      float r2 = fract(sin(cellSeed + step1 * 17.23) * 43758.5453);
+      float rnd = mix(r1, r2, fz);
+      v += (rnd - 0.5) * u_flicker * 0.9 * (0.15 + band * 0.85);
+
+      col = palette(clamp(v, 0.0, 1.0));
     }
 
     return col;
@@ -575,8 +623,8 @@ export const UNIFORM_NAMES: readonly string[] = [
   'u_color1', 'u_color2', 'u_color3', 'u_color4', 'u_color5', 'u_color6', 'u_color7', 'u_cardBg',
   'u_alpha1', 'u_alpha2', 'u_alpha3', 'u_alpha4', 'u_alpha5', 'u_alpha6', 'u_alpha7',
   'u_speed', 'u_intensity', 'u_scale', 'u_direction',
-  'u_softness', 'u_distortion', 'u_complexity', 'u_shape',
+  'u_softness', 'u_distortion', 'u_complexity', 'u_shape', 'u_flicker',
   'u_vignette', 'u_vigOpacity', 'u_blur', 'u_highlight', 'u_shaderOpacity',
   'u_cellSize', 'u_gap', 'u_dotSize', 'u_dotSoftness', 'u_dotOpacity', 'u_hlScale',
-  'u_fillOpacity', 'u_edgeFade', 'u_fadeStr', 'u_dotMode', 'u_effect'
+  'u_fillOpacity', 'u_edgeFade', 'u_fadeStr', 'u_dotMode', 'u_effect', 'u_sweepEase'
 ];

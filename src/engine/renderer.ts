@@ -179,6 +179,7 @@ function createUniforms(): Record<string, THREE.IUniform> {
     u_distortion: { value: 0.3 },
     u_complexity: { value: 0.2 },
     u_shape: { value: 0.5 },
+    u_flicker: { value: 0 },
     u_vignette: { value: 0.25 },
     u_vigOpacity: { value: 1 },
     u_blur: { value: 0 },
@@ -194,7 +195,8 @@ function createUniforms(): Record<string, THREE.IUniform> {
     u_edgeFade: { value: 16 },
     u_fadeStr: { value: 1 },
     u_dotMode: { value: 2 },
-    u_effect: { value: 4 }
+    u_effect: { value: 4 },
+    u_sweepEase: { value: 0 }
   };
 }
 
@@ -319,12 +321,14 @@ function uploadInstanceUniforms(s: SharedRenderer, inst: Instance): void {
   u.u_distortion.value = p.distortion;
   u.u_complexity.value = p.complexity;
   u.u_shape.value = p.shape;
+  u.u_flicker.value = p.flicker ?? 0;
   u.u_vignette.value = p.vignette;
   u.u_vigOpacity.value = p.vigOpacity;
   u.u_blur.value = p.blur;
   u.u_highlight.value = p.highlight;
   u.u_shaderOpacity.value = p.shaderOpacity;
   u.u_dotMode.value = p.dotMode;
+  u.u_sweepEase.value = p.sweepEase != null ? Math.floor(p.sweepEase) : 0;
 
   const mosaic = p.dotMode === 1 ? p.pixelConfig : p.dotConfig;
   u.u_cellSize.value = mosaic.cellSize;

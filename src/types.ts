@@ -74,6 +74,7 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
    *
    * - `pixels-organic` - Chromium Flow rendered as a pixel mosaic.
    * - `pixels-mechanic`- Nebula rendered as a pixel mosaic.
+   * - `sweep-gradient` - Gradient Sweep rendered as a pixel mosaic.
    *
    * @default 'pixels-organic'
    */
