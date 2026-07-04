@@ -17,7 +17,7 @@
  */
 import { parseCssColor, type EnginePresetMode, type MaskShape } from '../presets';
 import { ease } from './tween';
-import { effectiveCardBg, type Instance, type SharedRenderer } from './renderer';
+import { effectiveCardBg, effectivePaletteColor, type Instance, type SharedRenderer } from './renderer';
 
 /** Side length of the square buffer used to evaluate the reveal mask shape
  *  (and to sample the live shader field for the `shaderColor*` / `shaderHighlight`
@@ -395,7 +395,7 @@ function paintMaskedFrame(
       shaderColor5: 4
     };
     if (colorMap[maskShape] != null) {
-      targetColor = parseCssColor(preset.colors[colorMap[maskShape]]);
+      targetColor = effectivePaletteColor(inst, colorMap[maskShape]);
     }
     if (maskShape === 'shaderHighlight') {
       // `effectiveCardBg` may return any CSS colour the consumer passed via
@@ -405,14 +405,17 @@ function paintMaskedFrame(
       const bg = parseCssColor(effectiveCardBg(inst));
       highlightColors = [];
       for (let i = 0; i < 5; i++) {
-        const c = parseCssColor(preset.colors[i]);
+        // Use the effective (card-linked-remapped) colour so any swatch that
+        // followed an overridden card bg is correctly excluded here (it now
+        // equals the bg, so distC ≈ 0) instead of lingering as a highlight.
+        const c = effectivePaletteColor(inst, i);
         const dr = c[0] - bg[0];
         const dg = c[1] - bg[1];
         const db = c[2] - bg[2];
         const distC = Math.sqrt(dr * dr + dg * dg + db * db);
         if (distC > 0.15) highlightColors.push(c);
       }
-      if (highlightColors.length === 0) highlightColors = [parseCssColor(preset.colors[0])];
+      if (highlightColors.length === 0) highlightColors = [effectivePaletteColor(inst, 0)];
     }
   }
 

@@ -341,16 +341,17 @@ function uploadInstanceUniforms(s: SharedRenderer, inst: Instance): void {
   u.u_edgeFade.value = mosaic.edgeFade;
   u.u_fadeStr.value = mosaic.fadeStr;
 
-  for (let i = 0; i < 7; i++) {
-    const [r, g, b] = parseCssColor(p.colors[i]);
-    (u[`u_color${i + 1}`].value as THREE.Color).setRGB(r, g, b);
-    u[`u_alpha${i + 1}`].value = p.alphas[i];
-  }
   // `cardBgOverride` comes straight from the consumer's `cardBg` prop and is
   // documented as accepting any CSS colour, so route through parseCssColor
   // (alpha is dropped — see the parseCssColor JSDoc for why). The bundled
   // preset's own `cardBg` is always hex and hits the fast path.
   const [br, bg, bb] = parseCssColor(inst.cardBgOverride ?? p.cardBg);
+
+  for (let i = 0; i < 7; i++) {
+    const [r, g, b] = effectivePaletteColor(inst, i);
+    (u[`u_color${i + 1}`].value as THREE.Color).setRGB(r, g, b);
+    u[`u_alpha${i + 1}`].value = p.alphas[i];
+  }
   (u.u_cardBg.value as THREE.Color).setRGB(br, bg, bb);
 
   inst.uniformsDirty = false;
@@ -359,6 +360,32 @@ function uploadInstanceUniforms(s: SharedRenderer, inst: Instance): void {
 /** Hex (#rrggbb) currently in effect for this instance, accounting for override. */
 export function effectiveCardBg(inst: Instance): string {
   return inst.cardBgOverride ?? inst.preset.cardBg;
+}
+
+/**
+ * Palette colour `index` (0–6) as [r,g,b] in 0–1, after the card-linked remap
+ * (port of image.html's card-variable behaviour).
+ *
+ * Any preset colour authored to equal the preset's OWN canonical `cardBg` is
+ * treated as a "card variable": when the consumer overrides `cardBg`, those
+ * colours follow the new surface instead of staying at the preset default
+ * (otherwise e.g. sweep-gradient's #0f0f0f swatches read as dark blocks on a
+ * #1B1B1B demo card). With no override the effective bg equals the preset bg,
+ * so the comparison is a no-op and the raw colour is returned unchanged.
+ *
+ * Shared by the shader uniform upload and the reveal mask so the effect and
+ * its reveal silhouette stay in lockstep.
+ */
+export function effectivePaletteColor(inst: Instance, index: number): [number, number, number] {
+  const p = inst.preset;
+  const [r, g, b] = parseCssColor(p.colors[index]);
+  if (inst.cardBgOverride == null) return [r, g, b];
+  const [pbr, pbg, pbb] = parseCssColor(p.cardBg);
+  const chan = (v: number): number => Math.round(v * 255);
+  if (chan(r) === chan(pbr) && chan(g) === chan(pbg) && chan(b) === chan(pbb)) {
+    return parseCssColor(inst.cardBgOverride);
+  }
+  return [r, g, b];
 }
 
 /** Compute the pixel-space size an instance currently needs from the GL
