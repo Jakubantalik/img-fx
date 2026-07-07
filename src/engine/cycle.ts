@@ -75,6 +75,21 @@ export interface Cycle {
    * a `triggerOnce({ hold: 'manual' })` call.
    */
   triggerHide: () => void;
+  /**
+   * Dissolve the currently revealed image into a sustained "regenerating"
+   * pixel churn: the image breaks into the effect's cell grid, cells pop
+   * in/out with the preset's flicker clock, and the shader plays through the
+   * gaps (see `RevealState.startBoil`). The cycle returns to a stopped
+   * `idle` state so the consumer can end the churn with `triggerOnce()`
+   * (reveals the next image over it) or `stop()`. No-op unless currently in
+   * `reveal`/`visible`.
+   *
+   * `autoRevealAfterMs` — when set, the churn ends by itself: after that many
+   * ms the cycle fires `triggerOnce({ hold: 'manual' })`, dissolving the next
+   * image in over the churn. Any manual `triggerOnce()` / `stop()` before the
+   * timer fires cancels it.
+   */
+  triggerBoil: (opts?: { autoRevealAfterMs?: number }) => void;
   /** Current phase of the cycle. Useful for syncing UI button state. */
   getPhase: () => CyclePhase;
   setPaused: (paused: boolean) => void;
@@ -242,6 +257,21 @@ export function createCycle(opts: CycleOptions): Cycle {
       });
   }
 
+  function triggerOnceImpl(triggerOpts?: { hold?: 'auto' | 'manual' }): void {
+    if (paused) return;
+    // Don't interrupt an in-flight reveal/hold/hide.
+    if (phase === 'reveal' || phase === 'visible' || phase === 'hide') return;
+    const wasRunning = running;
+    clearTimer();
+    if (!wasRunning) {
+      // Spin up just enough state for runReveal to proceed; mark as running
+      // so the bail guards inside runReveal pass. `reschedule=false` makes
+      // runReveal return us to a stopped idle state once hide completes.
+      running = true;
+    }
+    runReveal(wasRunning, triggerOpts?.hold ?? 'auto');
+  }
+
   return {
     start() {
       if (running) return;
@@ -258,23 +288,33 @@ export function createCycle(opts: CycleOptions): Cycle {
       phase = 'idle';
     },
     triggerOnce(triggerOpts) {
-      if (paused) return;
-      // Don't interrupt an in-flight reveal/hold/hide.
-      if (phase === 'reveal' || phase === 'visible' || phase === 'hide') return;
-      const wasRunning = running;
-      clearTimer();
-      if (!wasRunning) {
-        // Spin up just enough state for runReveal to proceed; mark as running
-        // so the bail guards inside runReveal pass. `reschedule=false` makes
-        // runReveal return us to a stopped idle state once hide completes.
-        running = true;
-      }
-      runReveal(wasRunning, triggerOpts?.hold ?? 'auto');
+      triggerOnceImpl(triggerOpts);
     },
     triggerHide() {
       if (paused) return;
       if (phase !== 'reveal' && phase !== 'visible') return;
       performHide();
+    },
+    triggerBoil(boilOpts) {
+      if (paused) return;
+      if (phase !== 'reveal' && phase !== 'visible') return;
+      clearTimer();
+      opts.reveal.startBoil();
+      currentSrc = null;
+      // Come to a stopped idle (like a completed manual hide) so a later
+      // triggerOnce() runs a single non-rescheduling reveal over the churn.
+      running = false;
+      emit('idle');
+      // Optional self-ending churn: reveal the next image over the boil
+      // after the requested duration. Uses the shared timer slot, so any
+      // manual triggerOnce()/stop() in the meantime cancels it.
+      const afterMs = boilOpts?.autoRevealAfterMs;
+      if (afterMs != null && Number.isFinite(afterMs)) {
+        timer = setTimeout(() => {
+          timer = null;
+          triggerOnceImpl({ hold: 'manual' });
+        }, Math.max(0, afterMs));
+      }
     },
     getPhase() {
       return phase;

@@ -13,6 +13,13 @@ export default defineConfig({
   },
   build: {
     outDir: resolve(__dirname, 'dist-demo'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      // Multi-page build: main demo + the click-to-generate showcase.
+      input: {
+        index: resolve(__dirname, 'demo/index.html'),
+        showcase: resolve(__dirname, 'demo/showcase.html')
+      }
+    }
   }
 });

@@ -35,8 +35,10 @@ export {
   getMaxDpr,
   loadImage,
   pickRandomImage,
+  samplePaletteFromCanvas,
   setFrameRate,
   setInstanceCardBg,
+  setInstanceColors,
   setInstancePaused,
   setInstancePreset,
   setInstanceStrength,
@@ -52,5 +54,6 @@ export {
   type EaseFn,
   type Instance,
   type RevealState,
-  type RevealStartOptions
+  type RevealStartOptions,
+  type SampledPalette
 } from './engine';

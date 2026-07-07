@@ -33,7 +33,7 @@ export const SWEEP_GRADIENT: EnginePreset = {
         fadeStr: 0.34
       },
       direction: 0,
-      speed: 2.05,
+      speed: 2.65,
       intensity: 1,
       scale: 1,
       softness: 0.76,
@@ -90,7 +90,7 @@ export const SWEEP_GRADIENT: EnginePreset = {
         fadeStr: 0.34
       },
       direction: 0,
-      speed: 2,
+      speed: 2.65,
       intensity: 0.85,
       scale: 1,
       softness: 0.76,

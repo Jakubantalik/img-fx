@@ -5,12 +5,15 @@ export {
   createInstance,
   destroyInstance,
   effectiveCardBg,
+  effectiveCellSize,
   getFrameRate,
   getMaxDpr,
   renderInstanceOnce,
   setFrameRate,
   setInstanceCardBg,
+  setInstanceColors,
   setInstancePaused,
+  setInstancePixelScale,
   setInstancePreset,
   setInstanceStrength,
   setInstanceVisible,
@@ -36,5 +39,7 @@ export {
   type CycleOptions,
   type CyclePhase
 } from './cycle';
+
+export { samplePaletteFromCanvas, type SampledPalette } from './palette';
 
 export { ease, EASING_FNS, type EaseFn } from './tween';

@@ -54,6 +54,43 @@ export interface ImageGenerationHandle {
    */
   triggerHide: () => void;
   /**
+   * Regenerate the currently revealed image in place: the image breaks into
+   * the effect's pixel-cell grid, the cells churn (pop in/out with the
+   * preset's flicker clock) while the shader plays through the gaps, and
+   * after `durationMs` the next image from the pool dissolves in over the
+   * churn (held like `triggerReveal({ hold: 'manual' })`).
+   *
+   * By default the effect is also recolored from the outgoing image — its
+   * palette is sampled from the visible pixels and mapped onto the preset's
+   * palette slots by luminance rank, so the churn reads as pixelation born
+   * from that image rather than the preset's stock colors. The preset
+   * palette (or the `colors` prop, when set) is restored automatically once
+   * the new image is fully visible.
+   *
+   * The churn always runs on a pixel-mosaic preset (`pixels-mechanic` /
+   * `pixels-organic`). When the active preset is `sweep-gradient`, the effect
+   * temporarily switches to a randomly-picked pixel preset for the churn and
+   * restores the authored preset once the new image is fully visible.
+   *
+   * Options:
+   * - `durationMs` — churn length before the next image auto-reveals.
+   *   @default 4000
+   * - `tintFromImage` — recolor the effect from the outgoing image.
+   *   @default true
+   * - `autoReveal` — set to `false` to churn indefinitely instead; end it
+   *   manually with `triggerReveal()` (next image dissolves in over the
+   *   churn) or `triggerHide()`.
+   *   @default true
+   *
+   * No-op unless an image is currently revealed (`reveal` or `visible`
+   * phase). Emits an `idle` cycle event when the churn starts.
+   */
+  triggerRegenerate: (opts?: {
+    durationMs?: number;
+    tintFromImage?: boolean;
+    autoReveal?: boolean;
+  }) => void;
+  /**
    * Returns true while an image is showing on top of the shader (any of the
    * `reveal`, `visible`, or `hide` phases). Useful for driving the label /
    * icon of a Reveal/Hide toggle button.
@@ -96,6 +133,22 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
   strength?: number;
 
   /**
+   * Pixel-cell size multiplier for the mosaic effect. Scales the on-screen
+   * size of each pixel cell (and the matching reveal dissolve) without
+   * touching the preset:
+   *
+   *   - `1` (default) — the preset's authored cell size.
+   *   - `0.5` — cells at half size (finer grid, effect reads as "zoomed out").
+   *   - `2` — cells at double size (chunkier grid, "zoomed in").
+   *
+   * Implemented by dividing the shader grid's base cell count by this value,
+   * so the shader mosaic and the reveal pixel dissolve stay in lockstep. The
+   * grid always keeps a floor of 2 cells, so extreme values are safe.
+   * @default 1
+   */
+  pixelScale?: number;
+
+  /**
    * Card background colour. Accepts any CSS colour string the browser can
    * parse — hex (`#rgb` / `#rrggbb` / `#rrggbbaa`), `rgb()` / `rgba()`,
    * `hsl()` / `hsla()`, named colours, modern `color(...)` syntax — and is
@@ -118,6 +171,18 @@ export interface ImageGenerationProps extends Omit<HTMLAttributes<HTMLDivElement
    * `cardBg` (always opaque hex) is used.
    */
   cardBg?: string;
+
+  /**
+   * Optional palette override for the running effect (up to 7 CSS colors,
+   * one per shader palette slot). A slot with a value replaces the preset
+   * color verbatim; `null` / `undefined` slots keep the preset color. Pass
+   * `undefined` (or omit) to use the preset palette.
+   *
+   * Useful for re-tinting the effect from external data — e.g. colors
+   * sampled from the image being regenerated — while keeping the exact same
+   * animation and cell grid.
+   */
+  colors?: (string | null | undefined)[];
 
   /**
    * Image pool used by the reveal animation. Pass a single string to reveal

@@ -51,7 +51,9 @@ reveal materializes the image cell-by-cell along the traveling band).
 | `preset`            | `'pixels-organic' \| 'pixels-mechanic' \| 'sweep-gradient'`           | `'pixels-organic'` | Selects the bundled effect preset. `pixels-organic` = Chromium Flow mosaic, `pixels-mechanic` = Nebula mosaic, `sweep-gradient` = diagonal "generating" gradient sweep with per-cell flicker. |
 | `theme`             | `'auto' \| 'dark' \| 'light'`                                          | `'auto'`    | `auto` checks `<html data-theme>`, `.dark`/`.light` class, inline `color-scheme`, then `prefers-color-scheme`. Live-updates via MutationObserver. |
 | `strength`          | `number` (0..1)                                                       | `1`         | Final opacity multiplier. Doesn't change shader animation.                                       |
+| `pixelScale`        | `number`                                                              | `1`         | Pixel-cell size multiplier for the mosaic. `0.5` = finer grid, `2` = chunkier. The reveal dissolve stays in lockstep with the shader grid. |
 | `cardBg`            | `string` (any CSS colour)                                             | preset      | Override the host card surface colour. Applied verbatim to the wrapper background (alpha preserved) AND parsed to opaque RGB for the shader's `u_cardBg` so colour-proximity logic stays in sync. Accepts hex, `rgb()`/`rgba()`, `hsl()`, named colours, etc. |
+| `colors`            | `(string \| null)[]`                                                  | preset      | Per-slot palette override (up to 7 CSS colours, one per shader slot). Slots with a value replace the preset colour; `null`/missing slots keep it. Re-tints the running effect without authoring a preset. |
 | `images`            | `string \| string[]`                                                  | `[]`        | Reveal pool. Random pick per cycle, never repeats last.                                          |
 | `autoReveal`        | `boolean`                                                             | `false`     | When true, runs the auto-loop scheduler.                                                         |
 | `revealDelayRange`  | `[number, number]` seconds                                            | `[2, 4]`    | Random shader-only gap between reveals.                                                          |
@@ -100,6 +102,43 @@ const onToggle = () => {
   else h.triggerReveal({ hold: 'manual' });
 };
 ```
+
+## Regenerate
+
+`triggerRegenerate()` re-runs the "generating" effect **from the currently
+revealed image**: the photo breaks into the effect's pixel-cell grid and
+churns (cells popping in/out with the preset's flicker clock) while the
+shader plays through the gaps — then the next image from the pool dissolves
+in over the churn and stays visible.
+
+By default the effect is recolored from the outgoing image: its palette is
+sampled from the visible pixels and mapped onto the preset's palette slots by
+luminance rank, so the churn reads as pixelation born from the image rather
+than the preset's stock colors. The palette is restored automatically once
+the new image is fully visible.
+
+The churn always uses a pixel-mosaic preset (`pixels-mechanic` /
+`pixels-organic`): a `sweep-gradient` card temporarily switches to a
+randomly-picked pixel preset for the churn and restores its authored preset
+once the new image is fully visible.
+
+```tsx
+<button onClick={() => ref.current?.triggerRegenerate({ durationMs: 3000 })}>
+  Regenerate
+</button>
+```
+
+Options:
+
+| Option          | Type      | Default | Notes                                                            |
+| --------------- | --------- | ------- | ---------------------------------------------------------------- |
+| `durationMs`    | `number`  | `4000`  | Churn length before the next image auto-reveals (held manually). |
+| `tintFromImage` | `boolean` | `true`  | Recolor the effect from the outgoing image.                      |
+| `autoReveal`    | `boolean` | `true`  | `false` churns indefinitely — end it with `triggerReveal()` or `triggerHide()`. |
+
+No-op unless an image is currently revealed. Requires same-origin (or
+CORS-enabled) images for the palette sampling; cross-origin images without
+CORS fall back to the preset palette.
 
 ## Scale invariance
 

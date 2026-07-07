@@ -398,6 +398,12 @@ export function App(): JSX.Element {
       handle.triggerReveal({ hold: 'manual' });
     }
   }, []);
+  // One call runs the whole regenerate flow: the revealed image breaks into
+  // the effect's churning cell grid (recolored from the image itself), and
+  // the next image dissolves in automatically after the churn.
+  const handleRegenerate = useCallback(() => {
+    playgroundRef.current?.triggerRegenerate({ durationMs: 3000 });
+  }, []);
 
   // Coordinate the four cards so no two ever show the same image at once.
   // Map: card id -> currently-displayed src (set on `reveal`, cleared on `idle`).
@@ -480,6 +486,11 @@ export function Card() {
     else h.triggerReveal({ hold: 'manual' });
   };
 
+  // Regenerate in place: the revealed image breaks into the effect's
+  // churning pixel grid (tinted from the image itself), then the next
+  // image dissolves in automatically.
+  const onRegenerate = () => ref.current?.triggerRegenerate({ durationMs: 3000 });
+
   return (
     <>
       <ImageGeneration
@@ -491,6 +502,7 @@ export function Card() {
         <div style={{ width: 280, height: 280, borderRadius: 16 }} />
       </ImageGeneration>
       <button onClick={onToggle}>Reveal / hide</button>
+      <button onClick={onRegenerate}>Regenerate</button>
     </>
   );
 }`;
@@ -742,6 +754,22 @@ export function Card() {
                 title={playgroundPaused ? 'Press Play to enable' : undefined}
               >
                 {imageRevealed ? 'Hide image' : 'Reveal image'}
+              </button>
+              <button
+                type="button"
+                className="playground-toggle playground-toggle--text"
+                onClick={handleRegenerate}
+                disabled={playgroundPaused || !imageRevealed}
+                aria-disabled={playgroundPaused || !imageRevealed}
+                title={
+                  playgroundPaused
+                    ? 'Press Play to enable'
+                    : !imageRevealed
+                      ? 'Reveal an image first'
+                      : undefined
+                }
+              >
+                Regenerate
               </button>
             </div>
           </div>

@@ -104,8 +104,19 @@ export interface Instance {
    *  used as the shader's `u_cardBg` and forwarded to the reveal helper so
    *  background-derived shader logic stays in sync with the host card color. */
   cardBgOverride: string | null;
+  /** Optional per-slot palette override (CSS colors, up to 7 entries). A slot
+   *  with a value replaces the preset color verbatim (bypassing the card-bg
+   *  linked remap); missing/undefined slots fall back to the preset palette.
+   *  Lets consumers re-tint the running effect (e.g. from an image) without
+   *  authoring a whole preset. */
+  colorsOverride: (string | null | undefined)[] | null;
   /** Strength multiplier 0..1 (drives `canvas.style.opacity`). */
   strength: number;
+  /** Pixel-cell on-screen size multiplier. 1 = preset default, 0.5 = cells at
+   *  half size (finer / zoomed out), 2 = double size (chunkier / zoomed in).
+   *  Applied by dividing the shader grid's base cell count so both the shader
+   *  mosaic and the reveal dissolve share the same scaled grid. */
+  pixelScale: number;
   /** True when in viewport. */
   visible: boolean;
   /** True when the user has paused this instance. */
@@ -331,7 +342,7 @@ function uploadInstanceUniforms(s: SharedRenderer, inst: Instance): void {
   u.u_sweepEase.value = p.sweepEase != null ? Math.floor(p.sweepEase) : 0;
 
   const mosaic = p.dotMode === 1 ? p.pixelConfig : p.dotConfig;
-  u.u_cellSize.value = mosaic.cellSize;
+  u.u_cellSize.value = effectiveCellSize(mosaic.cellSize, inst.pixelScale);
   u.u_gap.value = mosaic.gap;
   u.u_dotSize.value = mosaic.dotSize;
   u.u_dotSoftness.value = mosaic.dotSoftness;
@@ -348,7 +359,8 @@ function uploadInstanceUniforms(s: SharedRenderer, inst: Instance): void {
   const [br, bg, bb] = parseCssColor(inst.cardBgOverride ?? p.cardBg);
 
   for (let i = 0; i < 7; i++) {
-    const [r, g, b] = effectivePaletteColor(inst, i);
+    const override = inst.colorsOverride?.[i];
+    const [r, g, b] = override != null ? parseCssColor(override) : effectivePaletteColor(inst, i);
     (u[`u_color${i + 1}`].value as THREE.Color).setRGB(r, g, b);
     u[`u_alpha${i + 1}`].value = p.alphas[i];
   }
@@ -621,6 +633,26 @@ export interface CreateInstanceOptions {
   preset: PresetMode;
   strength?: number;
   cardBg?: string | null;
+  /** Pixel-cell size multiplier (see `Instance.pixelScale`). @default 1 */
+  pixelScale?: number;
+}
+
+/**
+ * Resolve the effective `cellSize` (0..1 preset value) for an instance's
+ * `pixelScale`. The shader derives the mosaic grid from
+ * `gridCounts(6 + cellSize * 74)`, so scaling the on-screen cell *size* by
+ * `pixelScale` means dividing that base count by `pixelScale` (smaller cells
+ * = more of them). Returning a re-derived `cellSize` keeps the shader and the
+ * reveal dissolve — which both compute `6 + cellSize * 74` independently —
+ * perfectly in lockstep without threading an extra uniform.
+ *
+ * The result can fall below 0 (very chunky) or above 1 (very fine); the
+ * shader's `gridCounts` floor of 2 cells keeps that safe.
+ */
+export function effectiveCellSize(cellSize: number, pixelScale: number): number {
+  if (!(pixelScale > 0) || pixelScale === 1) return cellSize;
+  const baseCount = (6 + cellSize * 74) / pixelScale;
+  return (baseCount - 6) / 74;
 }
 
 export function createInstance(opts: CreateInstanceOptions): Instance {
@@ -638,7 +670,9 @@ export function createInstance(opts: CreateInstanceOptions): Instance {
     // boundary — see `Instance.preset` for the rationale.
     preset: opts.preset as EnginePresetMode,
     cardBgOverride: opts.cardBg ?? null,
+    colorsOverride: null,
     strength: opts.strength ?? 1,
+    pixelScale: opts.pixelScale != null && opts.pixelScale > 0 ? opts.pixelScale : 1,
     visible: true,
     paused: false,
     uniformsDirty: true,
@@ -684,6 +718,13 @@ export function setInstanceCardBg(inst: Instance, cardBg: string | null): void {
   inst.uniformsDirty = true;
 }
 
+/** Per-slot palette override (see `Instance.colorsOverride`). Pass null to
+ *  restore the preset palette. */
+export function setInstanceColors(inst: Instance, colors: (string | null | undefined)[] | null): void {
+  inst.colorsOverride = colors && colors.length > 0 ? colors.slice(0, 7) : null;
+  inst.uniformsDirty = true;
+}
+
 export function setInstanceVisible(inst: Instance, visible: boolean): void {
   inst.visible = visible;
   if (visible) wakeLoop();
@@ -696,6 +737,13 @@ export function setInstancePaused(inst: Instance, paused: boolean): void {
 
 export function setInstanceStrength(inst: Instance, strength: number): void {
   inst.strength = Math.max(0, Math.min(1, strength));
+}
+
+export function setInstancePixelScale(inst: Instance, pixelScale: number): void {
+  inst.pixelScale = pixelScale > 0 ? pixelScale : 1;
+  // Cell count is derived from pixelScale at uniform-upload time, so a change
+  // must invalidate the cached uniform block.
+  inst.uniformsDirty = true;
 }
 
 /**

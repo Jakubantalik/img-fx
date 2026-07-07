@@ -14,19 +14,28 @@ import {
   createReveal,
   destroyInstance,
   renderInstanceOnce,
+  samplePaletteFromCanvas,
   setInstanceCardBg,
+  setInstanceColors,
   setInstancePaused,
+  setInstancePixelScale,
   setInstancePreset,
   setInstanceStrength,
   setInstanceVisible,
   updateInstanceSize,
   type Cycle,
   type Instance,
-  type RevealState
+  type RevealState,
+  type SampledPalette
 } from './engine';
 import { PRESETS } from './presets';
 import { ensureStylesInjected } from './styles';
-import type { ImageGenerationHandle, ImageGenerationProps, ImageGenerationTheme } from './types';
+import type {
+  ImageGenerationHandle,
+  ImageGenerationPreset,
+  ImageGenerationProps,
+  ImageGenerationTheme
+} from './types';
 
 ensureStylesInjected();
 
@@ -108,13 +117,24 @@ function normaliseImages(input: string | string[] | undefined): string[] {
   return input.slice();
 }
 
+/** The regenerate churn always runs on one of these pixel-mosaic presets. */
+const PIXEL_CHURN_PRESETS = ['pixels-mechanic', 'pixels-organic'] as const;
+
+type PixelChurnPreset = (typeof PIXEL_CHURN_PRESETS)[number];
+
+function isPixelChurnPreset(name: ImageGenerationPreset): name is PixelChurnPreset {
+  return (PIXEL_CHURN_PRESETS as readonly string[]).includes(name);
+}
+
 export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGenerationProps>(function ImageGeneration(
   {
     children,
     preset = 'pixels-organic',
     theme = 'auto',
     strength = 1,
+    pixelScale = 1,
     cardBg: cardBgProp,
+    colors,
     images,
     autoReveal = false,
     revealDelayRange = [2, 4],
@@ -141,6 +161,19 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
   const onCycleRef = useRef(onCycle);
   const excludeSrcsRef = useRef(excludeSrcs);
 
+  // Transient image-derived recolor for the regenerate churn. While set, it
+  // overrides the palette + card surface (shader uniforms AND the wrapper's
+  // CSS background) so the effect wears the outgoing image's colors; cleared
+  // automatically when the next image reaches `visible`.
+  const [regenTint, setRegenTint] = useState<SampledPalette | null>(null);
+
+  // Transient preset override for the regenerate churn. The churn must always
+  // run on a pixel-mosaic preset (`pixels-mechanic` / `pixels-organic`): when
+  // the active preset is not one of those (e.g. `sweep-gradient`), a random
+  // pixel preset is swapped onto the instance for the churn's duration and
+  // the authored preset is restored once the next image is fully visible.
+  const [regenPresetName, setRegenPresetName] = useState<ImageGenerationPreset | null>(null);
+
   useImperativeHandle(
     forwardedRef,
     () => ({
@@ -152,6 +185,40 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
       },
       triggerHide() {
         cycleRef.current?.triggerHide();
+      },
+      triggerRegenerate(opts) {
+        const cycle = cycleRef.current;
+        if (!cycle || pausedRef.current) return;
+        const phase = cycle.getPhase();
+        if (phase !== 'reveal' && phase !== 'visible') return;
+        // The churn always runs on a pixel-mosaic preset: keep the active
+        // preset when it's already one, otherwise (e.g. sweep-gradient)
+        // temporarily switch the instance to a random pixel preset. The
+        // authored preset is restored when the next image reaches `visible`.
+        const activePreset = presetRef.current;
+        const churnName = isPixelChurnPreset(activePreset)
+          ? null
+          : PIXEL_CHURN_PRESETS[Math.floor(Math.random() * PIXEL_CHURN_PRESETS.length)];
+        // Recolor the effect from the visible image (overlay canvas) so the
+        // churn showing through the dropped cells reads as pixelation born
+        // from that image rather than the preset's stock palette. The sample
+        // maps onto the CHURN preset's palette slots (the preset actually
+        // rendering during the churn), not the outgoing preset's.
+        if (opts?.tintFromImage ?? true) {
+          const overlay = overlayCanvasRef.current;
+          if (overlay) {
+            const churnColors = churnName
+              ? PRESETS[churnName].modes[resolvedThemeRef.current].colors
+              : presetModeRef.current.colors;
+            const sampled = samplePaletteFromCanvas(overlay, churnColors);
+            if (sampled) setRegenTint(sampled);
+          }
+        }
+        if (churnName) setRegenPresetName(churnName);
+        const autoReveal = opts?.autoReveal ?? true;
+        cycle.triggerBoil(
+          autoReveal ? { autoRevealAfterMs: opts?.durationMs ?? 4000 } : undefined
+        );
       },
       isImageActive() {
         const phase = cycleRef.current?.getPhase() ?? 'idle';
@@ -178,6 +245,17 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
   // CSS background and the shader's `u_cardBg` uniform so contrast logic in
   // the shader stays in sync with the actual host card surface.
   const cardBg = cardBgProp ?? presetMode.cardBg;
+
+  // Live refs for the imperative `triggerRegenerate` (its handle is created
+  // once with empty deps, so it must read current values through refs).
+  const presetModeRef = useRef(presetMode);
+  presetModeRef.current = presetMode;
+  const presetRef = useRef(preset);
+  presetRef.current = preset;
+  const resolvedThemeRef = useRef(resolvedTheme);
+  resolvedThemeRef.current = resolvedTheme;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   // Normalised image pool + refs holding the latest cycle inputs so the
   // mount-only lifecycle effect can read them when constructing the cycle.
@@ -250,7 +328,8 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
       cssHeight: initial.h,
       preset: presetMode,
       strength,
-      cardBg: cardBgProp ?? null
+      cardBg: cardBgProp ?? null,
+      pixelScale
     });
     instanceRef.current = inst;
     inst.canvas.style.opacity = String(Math.max(0, Math.min(1, strength)));
@@ -274,7 +353,17 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
       holdMs: revealHoldMsRef.current,
       fadeOutMs: revealFadeOutMsRef.current,
       initialDelayMs: initialDelayMsRef.current,
-      onPhase: (e) => onCycleRef.current?.(e),
+      onPhase: (e) => {
+        // A fully-visible image ends any regenerate churn — restore the
+        // preset palette / consumer-provided colors and the authored preset.
+        // (No-op re-set when nothing is active; React bails on identical
+        // state.)
+        if (e.phase === 'visible') {
+          setRegenTint(null);
+          setRegenPresetName(null);
+        }
+        onCycleRef.current?.(e);
+      },
       excludeSrcs: () => excludeSrcsRef.current?.() ?? null
     });
     cycleRef.current = cycle;
@@ -380,21 +469,35 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
 
   // Sync preset/theme to the instance + force a one-shot repaint so paused
   // instances reflect the prop change live (rAF tick is gated on `!paused`).
+  // An active regenerate churn preset override takes precedence over the prop.
   useEffect(() => {
     const i = instanceRef.current;
     if (!i) return;
-    setInstancePreset(i, presetMode);
+    const effectiveMode = regenPresetName
+      ? PRESETS[regenPresetName].modes[resolvedTheme]
+      : presetMode;
+    setInstancePreset(i, effectiveMode);
     renderInstanceOnce(i);
-  }, [presetMode]);
+  }, [presetMode, regenPresetName, resolvedTheme]);
 
   // Sync cardBg override to the instance (shader uniform + reveal helper),
   // then repaint once so the change shows immediately even while paused.
+  // An active regenerate tint takes precedence over the prop.
   useEffect(() => {
     const i = instanceRef.current;
     if (!i) return;
-    setInstanceCardBg(i, cardBgProp ?? null);
+    setInstanceCardBg(i, regenTint?.cardBg ?? cardBgProp ?? null);
     renderInstanceOnce(i);
-  }, [cardBgProp]);
+  }, [cardBgProp, regenTint]);
+
+  // Sync the palette override (per-slot colors, e.g. sampled from an image).
+  // An active regenerate tint takes precedence over the prop.
+  useEffect(() => {
+    const i = instanceRef.current;
+    if (!i) return;
+    setInstanceColors(i, regenTint?.colors ?? colors ?? null);
+    renderInstanceOnce(i);
+  }, [colors, regenTint]);
 
   // Sync strength via the visible canvas opacity (no shader recompile).
   // The `opacity` style change is purely DOM and applies even while paused;
@@ -407,6 +510,15 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
       i.canvas.style.opacity = String(Math.max(0, Math.min(1, strength)));
     }
   }, [strength]);
+
+  // Sync pixelScale (recomputes the mosaic grid density) and repaint once so
+  // the change is visible immediately even while paused.
+  useEffect(() => {
+    const i = instanceRef.current;
+    if (!i) return;
+    setInstancePixelScale(i, pixelScale);
+    renderInstanceOnce(i);
+  }, [pixelScale]);
 
   // Sync paused.
   useEffect(() => {
@@ -443,10 +555,12 @@ export const ImageGeneration = forwardRef<ImageGenerationHandle, ImageGeneration
 
   const wrapperStyle = useMemo<CSSProperties>(() => {
     return {
-      background: cardBg,
+      // During a regenerate churn the card surface wears the outgoing
+      // image's average color so the dropped cells read as image pixels.
+      background: regenTint?.cardBg ?? cardBg,
       ...style
     };
-  }, [cardBg, style]);
+  }, [cardBg, regenTint, style]);
 
   return (
     <div
